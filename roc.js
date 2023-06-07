@@ -20,7 +20,7 @@ try {
 	process.exit(1)
 }
 
-// Si on utilise pas Tailwind CSS, on recommende de supprimer le fichier de config
+// Si on utilise pas Tailwind CSS, on recommande de supprimer le fichier de config
 if(!config.useTailwindCSS && fs.existsSync(path.join(process.cwd(), 'tailwind.config.js'))){
 	spinner.stop()
 	console.log(`${chalk.yellow('⚠')} Tailwind CSS n'est pas utilisé, vous pouvez supprimer le fichier tailwind.config.js`)
