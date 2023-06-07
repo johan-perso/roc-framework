@@ -1,0 +1,26 @@
+{
+    "name": "my-project",
+    "private": true,
+    "version": "1.0.0",
+    "rocVersion": "1.0.0",
+    "scripts": {
+        "dev": "node roc.js dev",
+        "build": "node roc.js build",
+        "start": "node roc.js start"
+    },
+    "dependencies": {
+        "boxen": "5.1.2",
+        "chalk": "4.1.2",
+        "chokidar": "3.5.3",
+        "daisyui": "3.0.2",
+        "express": "^4.18.2",
+        "html-minifier": "^4.0.0",
+        "localtunnel": "^2.0.2",
+        "open": "8.4.2",
+        "ora": "5.4.1",
+        "postcss": "^8.4.24",
+        "sqwish": "^0.2.2",
+        "tailwindcss": "3.3.2",
+        "ws": "^8.13.0"
+    }
+}
