@@ -8,6 +8,7 @@ const htmlMinify = require('html-minifier').minify;
 const chalk = require('chalk')
 const boxen = require('boxen')
 const ora = require('ora'), spinner = ora()
+require('dotenv').config()
 process.stdin.setRawMode(false); // j'sais même pas comment mais ça règle v'là les problèmes avec les raccourcis clavier (genre CTRL+C qui quitte le programme nativement)
 
 // Lire le fichier de configuration
@@ -49,6 +50,22 @@ function walk(dir){
 	return results
 }
 
+// Obtenir la liste des routes
+var routes = []
+function getRoutes(){
+	routes = []
+	walk(path.join(process.cwd(), 'public')).forEach(file => {
+		// Ne pas ajouter certaines routes
+		if(path.relative(path.join(process.cwd(), 'public'), file) == '_routing.json') return // fichier de routing
+		if(path.relative(path.join(process.cwd(), 'public'), file) == '404.html') return // page d'erreur 404
+
+		// Ajouter la route
+		if(file.endsWith('.html')) routes.push({ path: '/' + (path.relative(path.join(process.cwd(), 'public'), file) == 'index.html' ? '' : path.relative(path.join(process.cwd(), 'public'), file).replace(/\\/g, '/')), file: file })
+		else routes.push({ path: '/' + path.relative(path.join(process.cwd(), 'public'), file).replace(/\\/g, '/'), file: file })
+	})
+	return routes
+}
+
 // Générer le Tailwind CSS
 const postcss = require('postcss')
 const tailwind = require('tailwindcss')
@@ -78,7 +95,7 @@ async function generateTailwindCSS(){
 }
 
 // Générer le code HTML d'une page
-function generateHTML(routeFile, devServPort, options={ disableTailwind: false, preventMinify: false, forceMinify: false }){
+function generateHTML(routeFile, devServPort, options={ disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false }){
 	// Lire le fichier HTML
 	var html
 	try {
@@ -98,7 +115,7 @@ function generateHTML(routeFile, devServPort, options={ disableTailwind: false, 
 	}
 
 	// Si on est en développement, on va ajouter le live reload
-	if(process.argv.slice(2)[0] == 'dev'){
+	if(process.argv.slice(2)[0] == 'dev' && !options.disableLiveReload){
 		// Trouver l'emplacement où on va insérer le code
 		var jsInsertIndex = html.indexOf('</body>')
 		if(jsInsertIndex == -1) jsInsertIndex = html.length // Si on ne trouve pas </body>, on va le mettre à la fin
@@ -111,14 +128,19 @@ function generateHTML(routeFile, devServPort, options={ disableTailwind: false, 
 		// Obtenir le CSS minifié, et l'emplacement où on va l'insérer
 		var minifiedCSS = sqwish.minify(tailwindCSS)
 		var cssInsertIndex = html.indexOf('</head>')
-		if(cssInsertIndex == -1) cssInsertIndex = html.indexOf('<body>') + 6 // Si on ne trouve pas </head>, on va le mettre après <body>
+		if(cssInsertIndex == -1) cssInsertIndex = html.indexOf('<body>') != -1 ? html.indexOf('<body>') + 6 : -1 // Si on ne trouve pas </head>, on va le mettre après <body>
 		if(cssInsertIndex == -1) cssInsertIndex = html.length // Si on ne trouve pas <body>, on va le mettre à la fin
 
 		html = html.slice(0, cssInsertIndex) + `<style>${minifiedCSS}</style>` + html.slice(cssInsertIndex) // Insérer le code
 	}
 
 	// On retourne le code HTML
-	return ((config.minifyHtml && !options.preventMinify) || options.forceMinify) ? htmlMinify(html, { useShortDoctype: true, removeStyleLinkTypeAttributes: true, removeScriptTypeAttributes: true, removeComments: true, minifyURLs: true, minifyJS: true, minifyCSS: true, caseSensitive: true, preserveLineBreaks: true, collapseWhitespace: true }) : html
+	try {
+		return ((config.minifyHtml && !options.preventMinify) || options.forceMinify) ? htmlMinify(html, { useShortDoctype: true, removeStyleLinkTypeAttributes: true, removeScriptTypeAttributes: true, removeComments: true, minifyURLs: true, minifyJS: true, minifyCSS: true, caseSensitive: true, preserveLineBreaks: true, collapseWhitespace: true, continueOnParseError: true }) : html
+	} catch (err) {
+		console.log(err?.error || err?.message || err?.toString() || err)
+		return html // on envoie le HTML non minifié si on a une erreur
+	}
 }
 
 // Démarrer le serveur de développement
@@ -126,6 +148,7 @@ var server
 var app
 var serverRestart = 0
 var wss
+var routesCount
 async function startServer(port=parseInt(process.env.PORT || config.devPort || 3000)){
 	// Si on a déjà un serveur, on le ferme
 	if(server) server.close()
@@ -211,23 +234,22 @@ async function startServer(port=parseInt(process.env.PORT || config.devPort || 3
 			// Log
 			if(path.endsWith('roc.config.js')) spinner.warn("Le fichier de configuration roc.config.js a été modifié, redémarrez l'ensemble du processus pour appliquer les changements")
 
-			// Live reload, puis redémarrage du serveur
-			if(event == 'change' && path.endsWith('.html')) wss.clients.forEach(client => client.send('re'))
-			startServer(port) // on redémarre le serveur (mais certaines étapes ne seront pas refaites)
+			// Si on utilise TailwindCSS et qu'on a modifié un fichier HTML/CSS/JS
+			if(config.useTailwindCSS && (path.endsWith('.html') || path.endsWith('.css') || path.endsWith('.js'))) await generateTailwindCSS()
+
+			// Live reload
+			if(event == 'change') wss.clients.forEach(client => client.send('re'))
+
+			// Si on a un changement du nombre de routes, ou une modification dans le routing, on redémarre le serveur
+			if(path.endsWith('_routing.json') || routesCount != getRoutes().length){
+				routesCount = routes.length
+				return startServer(port) // on redémarre le serveur (mais certaines étapes ne seront pas refaites)
+			}
 		})
 	}
 
 	// On récupère la liste des routes
-	var routes = []
-	walk(path.join(process.cwd(), 'public')).forEach(file => {
-		// Ne pas ajouter certaines routes
-		if(path.relative(path.join(process.cwd(), 'public'), file) == '_routing.json') return // fichier de routing
-		if(path.relative(path.join(process.cwd(), 'public'), file) == '404.html') return // page d'erreur 404
-
-		// Ajouter la route
-		if(file.endsWith('.html')) routes.push({ path: '/' + (path.relative(path.join(process.cwd(), 'public'), file) == 'index.html' ? '' : path.relative(path.join(process.cwd(), 'public'), file).replace(/\\/g, '/')), file: file })
-		else routes.push({ path: '/' + path.relative(path.join(process.cwd(), 'public'), file).replace(/\\/g, '/'), file: file })
-	})
+	if(serverRestart == 1) getRoutes()
 
 	// Si le fichier de routing existe
 	if(fs.existsSync(path.join(process.cwd(), 'public', '_routing.json'))){
@@ -244,13 +266,13 @@ async function startServer(port=parseInt(process.env.PORT || config.devPort || 3
 		if(routing) routing.forEach(([route, file]) => {
 			// On ajoute la route
 			if(file.options?.showFile){
-				routes = routes.filter(r => r.path != route.path) // supprimer l'ancienne
+				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
 				routes.push({ path: route, method: file.method, file: path.join(process.cwd(), file.options.showFile), options: file.options }) // ajouter la nouvelle
 			}
 			else if(!file.options && file.method) routes.filter(r => r.path == route.path)[0].method = file.method // modifier l'ancienne
 			else if(file.options){
-				routes = routes.filter(r => r.path != route.path) // supprimer l'ancienne
-				routes.push({ path: route, method: file.method, options: file.options }) // ajouter la nouvelle
+				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
+				routes.push({ path: route, method: file.method || 'GET', options: file.options }) // ajouter la nouvelle
 			}
 		})
 	}
@@ -274,7 +296,7 @@ async function startServer(port=parseInt(process.env.PORT || config.devPort || 3
 
 			// Sinon, on envoie le fichier
 			else if(route.file){
-				if(route.file.endsWith('.html')) return res.send(generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })) // Si c'est un fichier .html, on génère le code HTML
+				if(route.file.endsWith('.html')) return res.send(generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })) // Si c'est un fichier .html, on génère le code HTML
 				else res.sendFile(path.join(route.file)) // Sinon on envoie le fichier
 			}
 
@@ -296,8 +318,17 @@ async function buildRoutes(){
 	if(!fs.existsSync(path.join(process.cwd(), config.buildDir))) fs.mkdirSync(path.join(process.cwd(), config.buildDir))
 	spinner.succeed(`Dossier de build: ${path.join(process.cwd(), config.buildDir)}`)
 
-	// Vérifier qu'il n'y a pas de fichier dedans
-	if(fs.readdirSync(path.join(process.cwd(), config.buildDir)).length > 0) return spinner.fail(`Le dossier de build n'est pas vide, supprimez tout les fichiers et dossiers à l'intérieur avant de lancer le build.`)
+	// Si on a un fichier dans le dossier build, on supprime tout
+	if(fs.readdirSync(path.join(process.cwd(), config.buildDir)).length > 0){
+		spinner.start('Suppression des fichiers de build existants...')
+		walk(path.join(process.cwd(), config.buildDir)).forEach(file => {
+			fs.unlinkSync(file)
+		})
+		spinner.succeed('Fichiers du précédent build supprimés')
+	}
+
+	// Importer Terser
+	const Terser = require('terser')
 
 	// Générer Tailwind CSS
 	if(config.useTailwindCSS){
@@ -332,7 +363,7 @@ async function buildRoutes(){
 		// On les ajoute si on en a
 		if(routing) routing.forEach(([route, file]) => {
 			// Supprimer l'ancienne route
-			routes = routes.filter(r => r.path != route.path)
+			routes = routes.filter(r => r.path != (route || route.path))
 
 			// Enlever le slash au début
 			if(route.startsWith('/')) route = route.slice(1)
@@ -349,45 +380,69 @@ async function buildRoutes(){
 
 	// On finit par générer les fichiers
 	spinner.start('Génération des fichiers...')
-	routes.forEach(route => {
-		// Si on doit générer une redirection
-		if(!route.file && route.options?.redirect) var content = `<!DOCTYPE html><html><head><title>Redirecting</title><meta http-equiv="refresh" content="0; url=${encodeURI(route.options.redirect.replace(/"/g, '\\"'))}"><script>location.href="${encodeURI(route.options.redirect.replace(/"/g, '\\"'))}"</script></head><body><a href="${encodeURI(route.options.redirect.replace(/"/g, '\\"'))}">Click here to force redirection</a></body></html>`
+	var generateFilePromise = new Promise((resolve, reject) => {
+		routes.forEach(async route => {
+			// Si on doit générer une redirection
+			if(!route.file && route.options?.redirect) var content = `<!DOCTYPE html><html><head><title>Redirecting</title><meta http-equiv="refresh" content="0; url=${encodeURI(route.options.redirect.replace(/"/g, '\\"'))}"><script>location.href="${encodeURI(route.options.redirect.replace(/"/g, '\\"'))}"</script></head><body><a href="${encodeURI(route.options.redirect.replace(/"/g, '\\"'))}">Click here to force redirection</a></body></html>`
 
-		// Si on a un fichier
-		else if(route.file){
-			/* fichier .html */ if(route.file.endsWith('.html')) var content = generateHTML(route.file, 0, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
-			/* autre fichier */ else var content = fs.readFileSync(route.file, 'utf8')
-		}
+			// Si on a un fichier HTML
+			else if(route.file && route.file.endsWith('.html')) var content = generateHTML(route.file, 0, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
 
-		// Si on a pas su quoi faire
-		else return spinner.warn(`Route : ${chalk.blue(route.path)} est mal configuré, vérifier le fichier de routage ou le dossier "public".`)
+			// Si on a pas su quoi faire
+			else if(!route.file) return spinner.warn(`Route : ${chalk.blue(route.path)} est mal configuré, vérifier le fichier de routage ou le dossier "public".`)
 
-		// Afficher des avertissements dans certaines situations
-		if(content){
-			// Vérifier l'attribut "lang=" sur la balise <html> des fichiers .html
-			if(route.file.endsWith('.html') && !content.includes('<html lang=')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas d'attribut "lang=" sur la balise <html>`)
+			// Afficher des avertissements dans certaines situations
+			if(content){
+				// Vérifier l'attribut "lang=" sur la balise <html> des fichiers .html
+				if(route.file.endsWith('.html') && !content.includes('<html lang=')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas d'attribut "lang=" sur la balise <html>`)
 
-			// Vérifier certaines métadonnées
-			if(route.file.endsWith('.html')){
-				if(!content.includes('<meta name="viewport"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="viewport">`)
-				if(!content.includes('<meta name="title"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="title">`)
-				if(!content.includes('<meta name="description"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="description">`)
-				if(!content.includes('<meta property="og:title"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta property="og:title">`)
-				if(!content.includes('<meta property="og:description"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta property="og:description">`)
-				if(!content.includes('<meta charset=')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta charset>`)
+				// Vérifier certaines métadonnées
+				if(route.file.endsWith('.html')){
+					if(!content.includes('<meta name="viewport"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="viewport">`)
+					if(!content.includes('<meta name="title"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="title">`)
+					if(!content.includes('<meta name="description"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="description">`)
+					if(!content.includes('<meta property="og:title"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta property="og:title">`)
+					if(!content.includes('<meta property="og:description"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta property="og:description">`)
+					if(!content.includes('<meta charset=')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta charset>`)
+				}
 			}
-		}
 
-		// On écrit le fichier
-		if(content){
-			// Créer les dossiers si besoin
-			if(route.path.includes('/') && !fs.existsSync(path.join(process.cwd(), config.buildDir, route.path.split('/').slice(0, -1).join('/')))){
-				fs.mkdirSync(path.join(process.cwd(), config.buildDir, route.path.split('/').slice(0, -1).join('/')), { recursive: true })
+			// On écrit le fichier HTML
+			if(content){
+				// Créer les dossiers si besoin
+				if(route.path.includes('/') && !fs.existsSync(path.join(process.cwd(), config.buildDir, route.path.split('/').slice(0, -1).join('/')))){
+					fs.mkdirSync(path.join(process.cwd(), config.buildDir, route.path.split('/').slice(0, -1).join('/')), { recursive: true })
+				}
+
+				// Écrire le fichier
+				fs.writeFileSync(path.join(process.cwd(), config.buildDir, route.path), content.toString())
 			}
-			// Écrire le fichier
-			fs.writeFileSync(path.join(process.cwd(), config.buildDir, route.path), content)
-		}
+
+			// Si on a pas de contenu, c'est car c'est pas un fichier HTML, donc on copie le fichier
+			else {
+				// Si on doit créer des dossiers
+				if(route.path.includes('/') && !fs.existsSync(path.join(process.cwd(), config.buildDir, route.path.split('/').slice(0, -1).join('/')))){
+					fs.mkdirSync(path.join(process.cwd(), config.buildDir, route.path.split('/').slice(0, -1).join('/')), { recursive: true })
+				}
+
+				// Si c'est un fichier JS et qu'on veut le minifier
+				if(route.file.endsWith('.js')){
+					// On va minifier le fichier
+					var minifiedJs = await Terser.minify(fs.readFileSync(route.file, 'utf8'))
+
+					// Écrire le fichier
+					fs.writeFileSync(path.join(process.cwd(), config.buildDir, route.path), minifiedJs.code)
+				}
+
+				// Sinon on va juste copier le fichier
+				else fs.copyFileSync(route.file, path.join(process.cwd(), config.buildDir, route.path))
+			}
+
+			// Si c'était le dernier fichier
+			if(routes.indexOf(route) == routes.length - 1) resolve()
+		})
 	})
+	await generateFilePromise
 	spinner.succeed('Fichiers générés dans le dossier de build')
 
 	// Rajouter un fichier .nojekyll pour GitHub Pages
