@@ -80,6 +80,7 @@ Les options disponibles sont les suivantes :
 
 * `redirect` | `string` : redirige vers une autre route, incompatible avec `showFile`.
 * `disableTailwind` | `boolean` : désactive Tailwind CSS pour cette route.
+* `disableLiveReload` | `boolean` : désactive le Live Reload pour cette route.
 * `preventMinify` | `boolean` : désactive la minification pour cette route, s'il s'agit d'une page HTML.
 * `forceMinify` | `boolean` : force la minification pour cette route, s'il s'agit d'une page HTML.
 * `showFile` | `string` : affiche un fichier, incompatible avec `redirect`.
