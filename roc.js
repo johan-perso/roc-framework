@@ -394,10 +394,10 @@ async function buildRoutes(){
 			// Afficher des avertissements dans certaines situations
 			if(content){
 				// Vérifier l'attribut "lang=" sur la balise <html> des fichiers .html
-				if(route.file.endsWith('.html') && !content.includes('<html lang=')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas d'attribut "lang=" sur la balise <html>`)
+				if(route.file && route.file.endsWith('.html') && !content.includes('<html lang=')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas d'attribut "lang=" sur la balise <html>`)
 
 				// Vérifier certaines métadonnées
-				if(route.file.endsWith('.html')){
+				if(route.file && route.file.endsWith('.html')){
 					if(!content.includes('<meta name="viewport"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="viewport">`)
 					if(!content.includes('<meta name="title"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="title">`)
 					if(!content.includes('<meta name="description"')) spinner.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas de balise <meta name="description">`)
