@@ -144,4 +144,4 @@ produira :
 
 ### Licence
 
-MIT © [Johan](https://johanstick.me)
+MIT © [Johan](https://johanstick.fr)
