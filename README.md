@@ -1,23 +1,40 @@
 # ROC *(solid like a rock)*
 
-ROC est un framework imaginé pour être le plus facile à utiliser pour ceux qui ont l'habitude de développer des sites web avec du HTML et du JavaScript.
+ROC est un générateur de site imaginé pour être le plus facile à utiliser pour ceux qui ont l'habitude de développer des sites web avec du HTML et du JavaScript.
 
-ROC embarque nativement des outils pour faciliter le développement comme une optimisation des fichiers lors du build, un serveur de développement avec rafraîchissement automatique, un système de routage et plus encore.
+ROC embarque nativement des outils pour faciliter le développement comme une optimisation des fichiers lors du build, un serveur de développement avec rafraîchissement automatique, un système de routage minimale et plus encore.
 
 
-### Création d'un projet
+## Création d'un projet
 
-ROC ne contient pas de CLI, il faut donc créer un projet manuellement. Pour cela, il suffit d'exécuter les commandes suivantes :
+Il n'existe pas encore de CLI capable de créer un projet par lui-même, mais il est possible de créer un projet manuellement :
 
 ```bash
-git clone https://github.com/johan-perso/roc-framework.git
-cd roc-framework
+# Optionnel : créer un nouveau dossier
+mkdir mon-projet
+cd mon-projet
+
+# Télécharger et décompresser le projet de départ
+curl -o RocFramework-starter-v2.0.0.zip https://r2.johanstick.fr/RocFramework-starter-v2.0.0.zip
+
+# Décompresser le fichier
+unzip RocFramework-starter-v2.0.0.zip
+rm RocFramework-starter-v2.0.0.zip
+
+# Installer les dépendances
 npm install
-# ou pnpm install
+npm install roc-framework@latest
+# ou pnpm install && pnpm install roc-framework@latest
+
+# Lancer le serveur de développement
+npm run dev
+# ou pnpm dev
 ```
 
-> Vous pourrez ensuite supprimer le dossier `.git` si vous le souhaitez, puis commencez à coder en modifiant `public/index.html` !
+> Vous pourrez commencez à coder en modifiant le fichier `public/index.html` !
 
+
+## Liste des commandes
 
 ### Développement
 
@@ -30,7 +47,6 @@ npm run dev
 
 > Un serveur de développement sera lancé sur le port 3000 par défaut, vous pouvez changer ce port dans le fichier `roc.config.js`.
 
-
 ### Build
 
 La construction d'un projet permet d'optimiser les fichiers pour une utilisation en production. Ceux-ci seront ensuite utilisables pour un déploiement sur des services comme GitHub Pages ou Vercel. Pour construire un projet, il suffit d'exécuter la commande suivante :
@@ -42,8 +58,21 @@ npm run build
 
 > Les fichiers seront placés dans le dossier `build` par défaut, vous pouvez changer l'emplacement dans le fichier `roc.config.js`.
 
+### Démarrer un serveur
 
-### Configuration
+Dans le cas où vous ne souhaitez pas configurer un serveur tel que Nginx ou Apache pour servir les fichiers après build, ROC inclut un serveur minimaliste qui peut être utilisé pour servir les fichiers. Pour démarrer ce serveur, il suffit d'exécuter la commande suivante :
+
+```bash
+npm start
+# ou pnpm start
+```
+
+> Chaque démarrage lancera un build avant de démarrer le serveur, vous pouvez ignorer cette étape en ajoutant l'option `--no-build` à la commande.
+
+> Il est en général préférable de servir les fichiers statiquement pour obtenir de meilleures performances.
+
+
+## Configuration
 
 La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fichier contient un objet avec les propriétés suivantes :
 
@@ -54,7 +83,7 @@ La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fich
 * `devOpenBrowser` | `boolean` : détermine si le navigateur doit s'ouvrir automatiquement lors du lancement du serveur de développement
 
 
-### Utilisation de Tailwind CSS
+## Utilisation de Tailwind CSS
 
 [Tailwind CSS](https://tailwindcss.com/) permet de styliser une page web plus simplement, et sans écrire de CSS soi-même. Pour l'utiliser avec ROC, il suffit de modifier la propriété `useTailwindCSS` dans le fichier `roc.config.js`.
 
@@ -65,7 +94,7 @@ Pour ajouter du CSS personnalisé, il suffit de créer un fichier `style.css` da
 > Pour plus d'informations sur le fonctionnement de Tailwind CSS, vous pouvez consulter leur [documentation](https://tailwindcss.com/docs).
 
 
-### Utilisation du routage
+## Utilisation du routage
 
 ROC embarque un système de routage simple à utiliser.
 
@@ -73,17 +102,17 @@ Tous les fichiers .html dans le dossier `public` seront automatiquement considé
 
 Vous pouvez aussi ajouter une route personnalisée depuis le fichier de routage `public/_routing.json`. Ce fichier doit contenir un objet par route, avec ce format : `"/chemin/vers/la/page": { "method": "...", "options": { ... } }`.
 
-* `method` | `string` : méthode HTTP à utiliser pour cette route (GET par défaut), ne fonctionne qu'avec le serveur de développement.
+* `method` | `string` : méthode HTTP à utiliser pour cette route (GET par défaut), ne fonctionne que sur le serveur de développement.
 * `options` | `object` : options pour cette route, voir ci-dessous.
 
 Les options disponibles sont les suivantes :
 
 * `redirect` | `string` : redirige vers une autre route, incompatible avec `showFile`.
+* `showFile` | `string` : affiche un fichier, incompatible avec `redirect`.
 * `disableTailwind` | `boolean` : désactive Tailwind CSS pour cette route.
 * `disableLiveReload` | `boolean` : désactive le Live Reload pour cette route.
 * `preventMinify` | `boolean` : désactive la minification pour cette route, s'il s'agit d'une page HTML.
 * `forceMinify` | `boolean` : force la minification pour cette route, s'il s'agit d'une page HTML.
-* `showFile` | `string` : affiche un fichier, incompatible avec `redirect`.
 
 > Les routes sont prioritaires sur les fichiers, si une route est définie pour une page, le fichier ne sera pas utilisé.  
 > Une route doit inclure l'option `showFile` ou `redirect` pour fonctionner. Si elle ne contient aucun des deux mais qu'un fichier existe, celui-ci sera utilisé avec la méthode définie dans `method` si disponible (sinon, `GET`).
@@ -115,7 +144,7 @@ Exemple :
 ```
 
 
-### Exécution de code côté serveur pendant le build
+## Exécution de code côté serveur pendant le build
 
 Il est possible depuis une page HTML d'exécuter du code JavaScript côté serveur lors du build. Pour cela, vous n'avez qu'à inclure du code entre doubles accolades (`{{ ... }}`) dans votre page HTML.
 
@@ -142,6 +171,11 @@ produira :
 ```
 
 
-### Licence
+## Déploiement sur Vercel
+
+Vous pouvez déployer votre projet sur Vercel sans exécuter la commande `build` en utilisant le fichier `vercel.json` fourni dans le projet de départ, vous n'aurez qu'à lancer un déploiement et Vercel installera ROC, exécutera la commande `build` et servira les fichiers générés.
+
+
+## Licence
 
 MIT © [Johan](https://johanstick.fr)
