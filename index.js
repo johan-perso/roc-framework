@@ -7,8 +7,15 @@ const sqwish = require("sqwish")
 const htmlMinify = require("html-minifier").minify
 const chalk = require("chalk")
 const { consola } = require("consola")
+const cheerio = require("cheerio")
+const pkg = require("./package.json")
 require("dotenv").config()
 if(process.isTTY) process.stdin.setRawMode(false) // j'sais même pas comment mais ça règle v'là les problèmes avec les raccourcis clavier (genre CTRL+C qui quitte le programme nativement)
+
+// Fonction pour échapper du HTML // pouvant être utile pour les sites qui ont du code traité par le serveur
+function escapeHtml(unsafe){ // eslint-disable-line
+	return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;")
+}
 
 // Lire le fichier de configuration
 var config
@@ -101,6 +108,17 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 		html = "_404"
 	}
 	if(html == "_404") return `404: le fichier "${routeFile}" n'existe pas.`
+
+	// Parser le DOM
+	var dom = cheerio.load(html, { xml: { xmlMode: false, decodeEntities: false } })
+
+	// Ajouter un header "generator" dans le head
+	var domHead = dom("head")
+	var domHeadGenerator = domHead.find("meta[name='generator']")
+	if(!domHeadGenerator.length) domHead.append(`<meta name="generator" content="ROC v${pkg.version}">`)
+
+	// Transformer le DOM en HTML
+	html = dom.html({ xml: { xmlMode: false, decodeEntities: false } })
 
 	// Pouvoir exécuter du code depuis le fichier HTML, côté serveur
 	try {
