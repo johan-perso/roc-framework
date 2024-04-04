@@ -113,8 +113,6 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	var dom = cheerio.load(html, { xml: { xmlMode: false, decodeEntities: false } })
 	var domHead = dom("head")
 	var domBody = dom("body")
-	// TODO: vérifier que ces modifications fonctionne dans le code qui s'exécute quand on build
-	// TODO: tenter d'ajouter automatiquement certaines balises si elles n'existent pas (celles qu'on vérifient pendant le build (charset, viewport))
 
 	// Ajouter un header "generator" dans le head
 	if(domHead) var domHeadGenerator = domHead.find("meta[name='generator']")
@@ -139,7 +137,6 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	// Pouvoir exécuter du code depuis le fichier HTML, côté serveur
 	try {
 		html = html.replace(/{{([\s\S]*?)}}/g, (match, p1) => {
-			console.log(p1)
 			return eval(p1.trim())
 		})
 	} catch (err) {
