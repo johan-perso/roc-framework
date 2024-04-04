@@ -114,6 +114,8 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	var domHead = dom("head")
 	var domBody = dom("body")
 	// TODO: vérifier que ces modifications fonctionne dans le code qui s'exécute quand on build
+	// TODO: tenter d'ajouter automatiquement certaines balises si elles n'existent pas (celles qu'on vérifient pendant le build (charset, viewport))
+
 	// Ajouter un header "generator" dans le head
 	if(domHead) var domHeadGenerator = domHead.find("meta[name='generator']")
 	if(domHead && !domHeadGenerator.length) domHead.append(`<meta name="generator" content="ROC v${pkg.version}">`)
@@ -143,6 +145,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	} catch (err) {
 		consola.warn(`Erreur lors de l'évaluation du code dans le fichier ${routeFile}`, err)
 	}
+
 	// On retourne le code HTML
 	try {
 		return ((config.minifyHtml && !options.preventMinify) || options.forceMinify) ? htmlMinify(html, { useShortDoctype: true, removeStyleLinkTypeAttributes: true, removeScriptTypeAttributes: true, removeComments: true, minifyURLs: true, minifyJS: true, minifyCSS: true, caseSensitive: true, preserveLineBreaks: true, collapseWhitespace: true, continueOnParseError: true }) : html
@@ -358,8 +361,9 @@ async function buildRoutes(){
 	// Note: cette fonction est volontairement différente de celle utilisée pour le serveur de développement : la page 404 est incluse par exemple
 	var routes = []
 	walk(path.join(process.cwd(), "public")).forEach(file => {
-		// Ne pas ajouter le fichier de routing
-		if(path.relative(path.join(process.cwd(), "public"), file) == "_routing.json") return
+		// Ne pas ajouter certains fichiers
+		if(path.relative(path.join(process.cwd(), "public"), file) == "_routing.json") return // fichier de routing
+		if(path.basename(file) == ".DS_Store") return // fichiers .DS_Store
 
 		// Ajouter la route
 		routes.push({ path: path.relative(path.join(process.cwd(), "public"), file).replace(/\\/g, "/"), file: file })
