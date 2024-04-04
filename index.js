@@ -49,9 +49,13 @@ var routes = []
 function getRoutes(){
 	routes = []
 	walk(path.join(process.cwd(), "public")).forEach(file => {
+		// Nom du fichier
+		var fileName = path.basename(file)
+
 		// Ne pas ajouter certaines routes
 		if(path.relative(path.join(process.cwd(), "public"), file) == "_routing.json") return // fichier de routing
 		if(path.relative(path.join(process.cwd(), "public"), file) == "404.html") return // page d'erreur 404
+		if(fileName == ".DS_Store") return // fichiers .DS_Store
 
 		// Ajouter la route
 		if(file.endsWith(".html")) routes.push({ path: `/${path.relative(path.join(process.cwd(), "public"), file) == "index.html" ? "" : path.relative(path.join(process.cwd(), "public"), file).replace(/\\/g, "/")}`, file: file })
