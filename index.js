@@ -284,20 +284,28 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		// Si la méthode n'est pas valide, on ne l'ajoute pas
 		if(route.method && !require("http").METHODS.includes(route.method.toUpperCase())) return consola.warn(`La méthode ${route.method} n'est pas valide pour la route ${route.path}`)
 
+		// Fonction pour ajouter la route
+		function addRoute(method, routePath){
+			app[method](routePath, async (req, res) => {
+				// Si on a pas de "file", on vérifie si on doit pas faire une redirection
+				if(!route.file && route.options?.redirect) res.redirect(route?.options?.redirect)
+
+				// Sinon, on envoie le fichier
+				else if(route.file){
+					if(route.file.endsWith(".html")) return res.send(generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })) // Si c'est un fichier .html, on génère le code HTML
+					else res.sendFile(path.join(route.file)) // Sinon on envoie le fichier
+				}
+
+				// Si on a pas su quoi faire
+				else res.status(404).send(`404: la route "${route.path}" est mal configuré.`)
+			})
+		}
+
 		// On ajoute la route
-		app[route?.method?.toLowerCase() || "get"](route.path, async (req, res) => {
-			// Si on a pas de "file", on vérifie si on doit pas faire une redirection
-			if(!route.file && route.options?.redirect) res.redirect(route?.options?.redirect)
+		addRoute(route.method?.toLowerCase() || "get", route.path)
 
-			// Sinon, on envoie le fichier
-			else if(route.file){
-				if(route.file.endsWith(".html")) return res.send(generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })) // Si c'est un fichier .html, on génère le code HTML
-				else res.sendFile(path.join(route.file)) // Sinon on envoie le fichier
-			}
-
-			// Si on a pas su quoi faire
-			else res.status(404).send(`404: la route "${route.path}" est mal configuré.`)
-		})
+		// On en ajoute une autre si elle finit par .html, pour permettre d'accéder à la page sans l'extension
+		if(route.path.endsWith(".html")) addRoute(route.method?.toLowerCase() || "get", route.path.slice(0, -5))
 	})
 
 	// On ajoute la page 404
