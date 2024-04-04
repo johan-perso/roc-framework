@@ -111,44 +111,38 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 
 	// Parser le DOM
 	var dom = cheerio.load(html, { xml: { xmlMode: false, decodeEntities: false } })
-
-	// Ajouter un header "generator" dans le head
 	var domHead = dom("head")
-	var domHeadGenerator = domHead.find("meta[name='generator']")
-	if(!domHeadGenerator.length) domHead.append(`<meta name="generator" content="ROC v${pkg.version}">`)
+	var domBody = dom("body")
+	// TODO: vérifier que ces modifications fonctionne dans le code qui s'exécute quand on build
+	// Ajouter un header "generator" dans le head
+	if(domHead) var domHeadGenerator = domHead.find("meta[name='generator']")
+	if(domHead && !domHeadGenerator.length) domHead.append(`<meta name="generator" content="ROC v${pkg.version}">`)
+
+	// Si on est en développement, on va ajouter le live reload
+	if(process.argv.slice(2)[0] == "dev" && !options.disableLiveReload){
+		if(domHead) domHead.append(`<script>url=new URL('ws://'+location.host),url.port=${devServPort + 1};new WebSocket(url).onmessage=(e)=>{if(e.data=='re')location.reload()}</script>`)
+		else if(domBody) domBody.append(`<script>url=new URL('ws://'+location.host),url.port=${devServPort + 1};new WebSocket(url).onmessage=(e)=>{if(e.data=='re')location.reload()}</script>`)
+	}
+
+	// Si on utilise Tailwind CSS, on va minifier le CSS et l'insérer dans l'HTML
+	if(config.useTailwindCSS && !options.disableTailwind && tailwindCSS){
+		var minifiedCSS = sqwish.minify(tailwindCSS)
+		if(domHead) domHead.append(`<style>${minifiedCSS}</style>`)
+		else if(domBody) domBody.append(`<style>${minifiedCSS}</style>`)
+	}
 
 	// Transformer le DOM en HTML
 	html = dom.html({ xml: { xmlMode: false, decodeEntities: false } })
 
 	// Pouvoir exécuter du code depuis le fichier HTML, côté serveur
 	try {
-		html = html.replace(/{{(.*)}}/g, (match, p1) => {
+		html = html.replace(/{{([\s\S]*?)}}/g, (match, p1) => {
+			console.log(p1)
 			return eval(p1.trim())
 		})
 	} catch (err) {
 		consola.warn(`Erreur lors de l'évaluation du code dans le fichier ${routeFile}`, err)
 	}
-
-	// Si on est en développement, on va ajouter le live reload
-	if(process.argv.slice(2)[0] == "dev" && !options.disableLiveReload){
-		// Trouver l'emplacement où on va insérer le code
-		var jsInsertIndex = html.indexOf("</body>")
-		if(jsInsertIndex == -1) jsInsertIndex = html.length // Si on ne trouve pas </body>, on va le mettre à la fin
-
-		html = `${html.slice(0, jsInsertIndex)}<script>url=new URL('ws://'+location.host),url.port=${devServPort + 1};new WebSocket(url).onmessage=(e)=>{if(e.data=='re')location.reload()}</script>${html.slice(jsInsertIndex)}` // Insérer le code
-	}
-
-	// Si on utilise Tailwind CSS, on va minifier le CSS et l'insérer dans l'HTML
-	if(config.useTailwindCSS && !options.disableTailwind && tailwindCSS){
-		// Obtenir le CSS minifié, et l'emplacement où on va l'insérer
-		var minifiedCSS = sqwish.minify(tailwindCSS)
-		var cssInsertIndex = html.indexOf("</head>")
-		if(cssInsertIndex == -1) cssInsertIndex = html.indexOf("<body>") != -1 ? html.indexOf("<body>") + 6 : -1 // Si on ne trouve pas </head>, on va le mettre après <body>
-		if(cssInsertIndex == -1) cssInsertIndex = html.length // Si on ne trouve pas <body>, on va le mettre à la fin
-
-		html = `${html.slice(0, cssInsertIndex)}<style>${minifiedCSS}</style>${html.slice(cssInsertIndex)}` // Insérer le code
-	}
-
 	// On retourne le code HTML
 	try {
 		return ((config.minifyHtml && !options.preventMinify) || options.forceMinify) ? htmlMinify(html, { useShortDoctype: true, removeStyleLinkTypeAttributes: true, removeScriptTypeAttributes: true, removeComments: true, minifyURLs: true, minifyJS: true, minifyCSS: true, caseSensitive: true, preserveLineBreaks: true, collapseWhitespace: true, continueOnParseError: true }) : html
