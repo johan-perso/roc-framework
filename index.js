@@ -8,13 +8,21 @@ const htmlMinify = require("html-minifier").minify
 const chalk = require("chalk")
 const { consola } = require("consola")
 const cheerio = require("cheerio")
-const pkg = require("./package.json")
+const rocPkg = require("./package.json")
+var projectPkg
 require("dotenv").config()
 if(process.isTTY) process.stdin.setRawMode(false) // j'sais même pas comment mais ça règle v'là les problèmes avec les raccourcis clavier (genre CTRL+C qui quitte le programme nativement)
 
 // Fonction pour échapper du HTML // pouvant être utile pour les sites qui ont du code traité par le serveur
 function escapeHtml(unsafe){ // eslint-disable-line
 	return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;")
+}
+
+// Obtenir le package.json du projet actuel
+try {
+	projectPkg = require(path.join(process.cwd(), 'package.json'))
+} catch (err) {
+	consola.warn("Le fichier package.json de votre projet n'a pas pu être lu. La version du site ne sera pas retournée dans les métadonnées.")
 }
 
 // Lire le fichier de configuration
@@ -116,7 +124,15 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 
 	// Ajouter un header "generator" dans le head
 	if(domHead) var domHeadGenerator = domHead.find("meta[name='generator']")
-	if(domHead && !domHeadGenerator.length) domHead.append(`<meta name="generator" content="ROC v${pkg.version}">`)
+	if(domHead && !domHeadGenerator.length) domHead.append(`<meta name="generator" content="ROC v${rocPkg?.version}">`)
+
+	// Ajouter un objet avec des infos sur le site
+	if(domHead) var domHeadSiteInfo = domHead.find("script#reserved-roc-siteinfos")
+	if(domHead && !domHeadSiteInfo.length) domHead.append(`<script id="reserved-roc-siteinfos">window.roc = ${JSON.stringify({
+		projectVersion: projectPkg?.version || undefined,
+		rocVersion: rocPkg?.version || undefined,
+		isDev: process.argv.slice(2)[0] == "dev" == true ? true : undefined,
+	})}</script>`)
 
 	// Si on est en développement, on va ajouter le live reload
 	if(process.argv.slice(2)[0] == "dev" && !options.disableLiveReload){
