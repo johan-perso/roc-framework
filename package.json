@@ -1,7 +1,7 @@
 {
     "name": "roc-framework",
     "version": "2.1.1",
-    "description": "Un générateur simple, léger et puissant pour créer des sites web statiques.",
+    "description": "Un générateur simple et léger mais puissant pour aider au développement de sites statiques",
     "main": "index.js",
     "bin": {
         "roc": "index.js"
