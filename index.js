@@ -167,7 +167,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	if(domHead && !domHeadSiteInfo.length) domHead.append(`<script id="reserved-roc-siteinfos">window.roc = ${JSON.stringify({
 		projectVersion: projectPkg?.version || undefined,
 		rocVersion: rocPkg?.version || undefined,
-		isDev: process.argv.slice(2)[0] == "dev" == true ? true : undefined, // TODO: rendre ça fonctionnel même avec backend
+		isDev: (fromCli && process.argv.slice(2)[0] == "dev") || (!fromCli && process.env.NODE_ENV != 'production') == true ? true : undefined,
 	})}</script>`)
 
 	// Si on est en développement (CLI) ou option activé (dynamique), on va ajouter le live reload
@@ -362,7 +362,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 				// Sinon, on envoie le fichier
 				else if(route.file){
 					if(route.file.endsWith(".html")) return res.send(generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })) // Si c'est un fichier .html, on génère le code HTML
-					else res.sendFile(path.join(route.file)) // Sinon on envoie le fichier
+					else res.sendFile(route.file) // Sinon on envoie le fichier
 				}
 
 				// Si on a pas su quoi faire
@@ -609,7 +609,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	if(varResponse != true) throw new Error(varResponse)
 	this.readonlyOptions = serverOptions
 	globalLiveReloadEnabled = options.liveReloadEnabled == true
-	projectPath = path.normalize(options.path)
+	projectPath = path.resolve(options.path)
 
 	// Recréer le logger si on l'a activé
 	if(options.logger) consola.level = 3
