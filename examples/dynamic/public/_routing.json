@@ -1,7 +1,7 @@
 {
-	"/404.html": {
+	"/test": {
 		"options": {
-			"redirect": "/"
+			"showFile": "public/index.html"
 		}
 	}
 }

@@ -12,6 +12,12 @@ const rocPkg = require("./package.json")
 var projectPkg = null
 var projectPath = path.join(process.cwd(), 'public')
 var globalLiveReloadEnabled = false
+var _dynamicEmitter
+var _events = {
+	ready: [],
+	error: [],
+	request: []
+}
 require("dotenv").config()
 
 // Si on exécute depuis le CLI
@@ -74,6 +80,23 @@ function initVariables(configParam = null){ // configParam doit être présent s
 async function getLocalIP(){
 	var ip = require("os").networkInterfaces()["Wi-Fi"]?.filter(i => i?.family == "IPv4")[0] || Object.values(require("os").networkInterfaces()).flat().filter(({ family, internal }) => family === "IPv4" && !internal).map(({ address }) => address)[0] || await require("dns").promises.lookup(require("os").hostname())
 	return ip.address || ip || "<votre ip local>"
+}
+
+// Fonction pour retourner une erreur si un des deux paramètres est mal rangé
+function checkCodeAndContentOrder(res, code, content){
+	if(!code || !content){
+		res.send("[dev error] Un paramètres est manquant dans la fonction appelée pour répondre à cette requête")
+		return false
+	}
+	if(code && typeof code != "number"){
+		res.send("[dev error] Le code de statut HTTP doit être un nombre")
+		return false
+	}
+	if(content && (typeof content == "undefined" || typeof content == "function")){
+		res.send("[dev error] Le contenu ne doit pas être manquant ni ne doit être une fonction")
+		return false
+	}
+	return true
 }
 
 // Obtenir les fichiers/dossiers dans un dossier
@@ -302,7 +325,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 			if(event == "change") wss.clients.forEach(client => client.send("re"))
 
 			// Si on a un changement du nombre de routes, ou une modification dans le routing, on redémarre le serveur
-			if(path.endsWith("_routing.json") || routesCount != getRoutes().length){ // TODO: fix la détection quand on remplace un fichier par exemple
+			if(path.endsWith("_routing.json") || routesCount != getRoutes().length){
 				routesCount = routes.length
 				return startServer(port) // on redémarre le serveur (mais certaines étapes ne seront pas refaites)
 			}
@@ -356,17 +379,70 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		// Fonction pour ajouter la route
 		function addRoute(method, routePath){
 			app[method](routePath, async (req, res) => {
+				var actionType = ''
+				var actionContent = ''
+
 				// Si on a pas de "file", on vérifie si on doit pas faire une redirection
-				if(!route.file && route.options?.redirect) res.redirect(route?.options?.redirect)
+				if(!route.file && route.options?.redirect){
+					actionType = 'redirect'
+					actionContent = route?.options?.redirect
+				}
 
 				// Sinon, on envoie le fichier
 				else if(route.file){
-					if(route.file.endsWith(".html")) return res.send(generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })) // Si c'est un fichier .html, on génère le code HTML
-					else res.sendFile(route.file) // Sinon on envoie le fichier
+					if(route.file.endsWith(".html")){
+						actionType = 'sendHtml'
+						actionContent = generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
+					}
+					else {
+						actionType = 'sendFile'
+						actionContent = route.file // Sinon on envoie le fichier
+					}
 				}
 
 				// Si on a pas su quoi faire
-				else res.status(404).send(`404: la route "${route.path}" est mal configuré.`)
+				else {
+					actionType = '404'
+					actionContent = `404: la route "${route.path}" est mal configuré.`
+				}
+
+				if(!fromCli && config.interceptRequests){
+					var customReq = {
+						url: req.url,
+						path: req.path,
+						method: req.method,
+						headers: req.headers,
+						body: req.body,
+						query: req.query,
+						params: req.params,
+						cookies: req.cookies,
+						ip: req.ip,
+						hostname: req.hostname,
+						protocol: req.protocol,
+						secure: req.secure,
+						originalUrl: req.originalUrl,
+					}
+
+					var customRes = {
+						send: (statusCode = 200, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.status(statusCode).send(content) : false,
+						sendFile: (statusCode = 200, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.status(statusCode).sendFile(content) : false,
+						json: (statusCode = 200, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.status(statusCode).json(content) : false,
+						redirect: (statusCode = 302, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.redirect(statusCode, content) : false,
+						initialAction: { type: actionType, content: actionContent },
+					}
+
+					try {
+						_dynamicEmitter("request", customReq, customRes)
+					} catch (err) {
+						consola.error(err?.message || err?.toString() || err)
+					}
+					return
+				} else { // sinon, on effectue les actions de base (sans interception)
+					if(actionType == 'sendHtml') return res.send(actionContent)
+					if(actionType == 'sendFile') return res.sendFile(actionContent)
+					if(actionType == 'redirect') return res.redirect(actionContent)
+					if(actionType == '404') return res.status(404).send(actionContent)
+				}
 			})
 		}
 
@@ -604,7 +680,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	}
 
 	// Initialiser les variables
-	var serverOptions = { useTailwindCSS: options.useTailwindCSS, minifyHtml: options.minifyHtml, devPort: options.port, liveReloadEnabled: options.liveReload }
+	var serverOptions = { interceptRequests: options.interceptRequests, useTailwindCSS: options.useTailwindCSS, minifyHtml: options.minifyHtml, devPort: options.port, liveReloadEnabled: options.liveReload }
 	var varResponse = initVariables(serverOptions)
 	if(varResponse != true) throw new Error(varResponse)
 	this.readonlyOptions = serverOptions
@@ -615,17 +691,13 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	if(options.logger) consola.level = 3
 
 	// Event handling
-	this.events = {
-		ready: [],
-		error: [],
-		request: []
-	}
 	this.on = function(event, callback) {
-		if(this.events[event]) this.events[event].push(callback)
+		if(_events[event]) _events[event].push(callback)
 	}
 	this._emit = function(event, data1, data2){
-		if(this.events[event]) this.events[event].forEach(callback => callback(data1, data2))
+		if(_events[event]) _events[event].forEach(callback => callback(data1, data2))
 	}
+	_dynamicEmitter = this._emit
 
 	// Fonction pour démarrer le serveur
 	this.start = async function(){
