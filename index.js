@@ -9,13 +9,13 @@ const chalk = require("chalk")
 const { consola } = require("consola")
 const cheerio = require("cheerio")
 const rocPkg = require("./package.json")
+var Terser
 var projectPkg = null
 var projectPath = path.join(process.cwd(), 'public')
 var globalLiveReloadEnabled = false
 var _dynamicEmitter
 var _events = {
 	ready: [],
-	error: [],
 	request: []
 }
 require("dotenv").config()
@@ -153,7 +153,7 @@ async function generateTailwindCSS(){
 
 		// Générer et retourner le CSS
 		const result = await postcss([
-			tailwind({ config: path.join(projectPath, '..', "tailwind.config.js"), }),
+			tailwind({ config: path.join(projectPath, '..', "tailwind.config.js") }),
 		]).process(`@tailwind base;@tailwind components;@tailwind utilities;${extraCSS}`, { from: undefined })
 		tailwindCSS = result.css
 		return result.css
@@ -371,6 +371,9 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		next()
 	})
 
+	// Importer Terser
+	if(!Terser) Terser = require("terser")
+
 	// On ajoute les routes
 	routes.forEach(route => {
 		// Si la méthode n'est pas valide, on ne l'ajoute pas
@@ -387,25 +390,27 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					actionType = 'redirect'
 					actionContent = route?.options?.redirect
 				}
-
 				// Sinon, on envoie le fichier
 				else if(route.file){
 					if(route.file.endsWith(".html")){
 						actionType = 'sendHtml'
 						actionContent = generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
-					}
-					else {
+					} else if(route.file.endsWith(".js")){
+						actionType = 'sendJs'
+						actionContent = fs.readFileSync(route.file, "utf8")
+						if(!route.options?.preventMinify) actionContent = (await Terser.minify(actionContent))?.code || actionContent
+					} else {
 						actionType = 'sendFile'
 						actionContent = route.file // Sinon on envoie le fichier
 					}
 				}
-
 				// Si on a pas su quoi faire
 				else {
 					actionType = '404'
 					actionContent = `404: la route "${route.path}" est mal configuré.`
 				}
 
+				// Si on est en mode dynamique et que l'interception des requêtes est activés
 				if(!fromCli && config.interceptRequests){
 					var customReq = {
 						url: req.url,
@@ -424,10 +429,26 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					}
 
 					var customRes = {
-						send: (statusCode = 200, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.status(statusCode).send(content) : false,
-						sendFile: (statusCode = 200, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.status(statusCode).sendFile(content) : false,
-						json: (statusCode = 200, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.status(statusCode).json(content) : false,
-						redirect: (statusCode = 302, content) => checkCodeAndContentOrder(res, statusCode, content) ? res.redirect(statusCode, content) : false,
+						send: (statusCode = 200, content, options = {}) => {
+							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+							if(options.headers) res.set(options.headers)
+							res.status(statusCode).send(content)
+						},
+						sendFile: (statusCode = 200, content, options = {}) => {
+							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+							if(options.headers) res.set(options.headers)
+							res.status(statusCode).sendFile(content)
+						},
+						json: (statusCode = 200, content, options = {}) => {
+							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+							if(options.headers) res.set(options.headers)
+							res.status(statusCode).json(content)
+						},
+						redirect: (statusCode = 302, content, options = {}) => {
+							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+							if(options.headers) res.set(options.headers)
+							res.redirect(statusCode, content)
+						},
 						initialAction: { type: actionType, content: actionContent },
 					}
 
@@ -439,6 +460,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					return
 				} else { // sinon, on effectue les actions de base (sans interception)
 					if(actionType == 'sendHtml') return res.send(actionContent)
+					if(actionType == 'sendJs') return res.header("Content-Type", "application/javascript").send(actionContent)
 					if(actionType == 'sendFile') return res.sendFile(actionContent)
 					if(actionType == 'redirect') return res.redirect(actionContent)
 					if(actionType == '404') return res.status(404).send(actionContent)
@@ -475,7 +497,7 @@ async function buildRoutes(){
 	}
 
 	// Importer Terser
-	const Terser = require("terser")
+	if(!Terser) Terser = require("terser")
 
 	// Générer Tailwind CSS
 	if(config.useTailwindCSS){
