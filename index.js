@@ -24,6 +24,7 @@ require("dotenv").config()
 var fromCli = require.main === module
 if(fromCli && process.isTTY) process.stdin.setRawMode(false) // j'sais même pas comment mais ça règle v'là les problèmes avec les raccourcis clavier (genre CTRL+C qui quitte le programme nativement)
 if(!fromCli) consola.level = -999
+var isDev = (fromCli && process.argv.slice(2)[0] == "dev") || (!fromCli && process.env.NODE_ENV != 'production') == true
 
 // (CLI) Exécuter certaines fonctions selon les arguments
 if(fromCli){
@@ -197,7 +198,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	if(domHead && !domHeadSiteInfo.length) domHead.append(`<script id="reserved-roc-siteinfos">window.roc = ${JSON.stringify({
 		projectVersion: projectPkg?.version || undefined,
 		rocVersion: rocPkg?.version || undefined,
-		isDev: (fromCli && process.argv.slice(2)[0] == "dev") || (!fromCli && process.env.NODE_ENV != 'production') == true ? true : undefined,
+		isDev: isDev ? true : undefined,
 	})}</script>`)
 
 	// Si on est en développement (CLI) ou option activé (dynamique), on va ajouter le live reload
@@ -725,7 +726,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	var varResponse = initVariables(serverOptions)
 	if(varResponse != true) throw new Error(varResponse)
 	this.readonlyOptions = serverOptions
-	globalLiveReloadEnabled = options.liveReloadEnabled == true
+	globalLiveReloadEnabled = options.liveReloadEnabled == true && isDev
 	projectPath = path.resolve(options.path)
 
 	// Recréer le logger si on l'a activé
