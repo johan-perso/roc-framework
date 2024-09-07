@@ -12,21 +12,11 @@ var server = new roc.server({
 
 server.on('ready', () => { console.log('received msg ready!') })
 server.on('request', (req, res) => { // uniquement si interceptRequests est à true
-	// Page d'accueil : servir la page initiale en remplacant "ROC" par "ROC Dynamic"
-	if(req.path == '/'){
-		res.send(200, res.initialAction.content.replaceAll('ROC', 'ROC Dynamic'))
-	}
-
-	// Test.js : retourner un simple fichier JavaScript
-	else if(req.path == '/test.js'){
-		if(res.initialAction.type == 'sendJs') res.send(200, res.initialAction.content, { headers: { 'Content-Type': 'application/javascript' } })
-		else res.sendFile(200, res.initialAction.content)
-	}
-
-	// Pour les autres routes déclarés mais qu'on ne veut pas gérer
-	else {
-		res.send(404, 'Not found')
-	}
+	if(res.initialAction.type == 'sendHtml') res.send(200, res.initialAction.content.replaceAll('ROC', 'ROC Dynamic'))
+	if(res.initialAction.type == 'sendJs') res.send(200, res.initialAction.content, { headers: { 'Content-Type': 'application/javascript' } })
+	if(res.initialAction.type == 'sendFile') res.sendFile(200, res.initialAction.content)
+	if(res.initialAction.type == 'redirect') res.redirect(302, res.initialAction.content)
+	if(res.initialAction.type == '404') res.send404()
 })
 
 server.start()
