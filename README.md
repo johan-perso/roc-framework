@@ -5,21 +5,20 @@ ROC est un générateur de site imaginé pour être le plus facile à utiliser p
 ROC embarque nativement des outils pour faciliter le développement comme une optimisation des fichiers lors du build, un serveur de développement avec rafraîchissement automatique, un système de routage minimale et plus encore.
 
 
-## Création d'un projet
+## (CLI) Création d'un projet
 
-Il n'existe pas encore de CLI capable de créer un projet par lui-même, mais il est possible de créer un projet manuellement :
+Il n'existe pas encore d'outil capable de créer un projet automatiquement, mais il est possible de créer un projet manuellement :
 
 ```bash
 # Optionnel : créer un nouveau dossier
 mkdir mon-projet
 cd mon-projet
 
-# Télécharger et décompresser le projet de départ
-curl -o RocFramework-starter-v2.0.0.zip https://r2.johanstick.fr/RocFramework-starter-v2.0.0.zip
-
-# Décompresser le fichier
-unzip RocFramework-starter-v2.0.0.zip
-rm RocFramework-starter-v2.0.0.zip
+# Vous devrez télécharger l'exemple présent dans le dossier "examples/static"
+# GUI (Web) : https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2Fjohan-perso%2Froc-framework%2Ftree%2Fmain%2Fexamples%2Fstatic
+git clone github.com/johan-perso/roc-framework --branch main --single-branch roc-framework-starter
+mv roc-framework-starter/examples/static/* .
+rm -rf roc-framework-starter
 
 # Installer les dépendances
 npm install
@@ -34,7 +33,7 @@ npm run dev
 > Vous pourrez commencez à coder en modifiant le fichier `public/index.html` !
 
 
-## Liste des commandes
+## (CLI) Liste des commandes
 
 ### Développement
 
@@ -72,7 +71,7 @@ npm start
 > Il est en général préférable de servir les fichiers statiquement pour obtenir de meilleures performances.
 
 
-## Configuration
+## (CLI) Configuration
 
 La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fichier contient un objet avec les propriétés suivantes :
 
@@ -100,22 +99,22 @@ ROC embarque un système de routage simple à utiliser.
 
 Tous les fichiers .html dans le dossier `public` seront automatiquement considérés comme des pages web et bénéficieront de fonctionnalité comme la minification, l'utilisation de Tailwind CSS et le rafraîchissement automatique pendant le développement. Les autres fichiers seront également accessibles sans ces fonctionnalités.
 
-Vous pouvez aussi ajouter une route personnalisée depuis le fichier de routage `public/_routing.json`. Ce fichier doit contenir un objet par route, avec ce format : `"/chemin/vers/la/page": { "method": "...", "options": { ... } }`.
+Vous pouvez aussi ajouter une route personnalisée depuis le fichier de routage `public/_routing.json`. Ce fichier doit contenir un objet par route, avec ce format : `"/chemin/vers/la/page": { "options": { ... } }`.
 
-* `method` | `string` : méthode HTTP à utiliser pour cette route (GET par défaut), ne fonctionne que sur le serveur de développement.
 * `options` | `object` : options pour cette route, voir ci-dessous.
 
 Les options disponibles sont les suivantes :
 
 * `redirect` | `string` : redirige vers une autre route, incompatible avec `showFile`.
 * `showFile` | `string` : affiche un fichier, incompatible avec `redirect`.
+
 * `disableTailwind` | `boolean` : désactive Tailwind CSS pour cette route.
 * `disableLiveReload` | `boolean` : désactive le Live Reload pour cette route.
 * `preventMinify` | `boolean` : désactive la minification pour cette route, s'il s'agit d'une page HTML.
 * `forceMinify` | `boolean` : force la minification pour cette route, s'il s'agit d'une page HTML.
 
 > Les routes sont prioritaires sur les fichiers, si une route est définie pour une page, le fichier ne sera pas utilisé.  
-> Une route doit inclure l'option `showFile` ou `redirect` pour fonctionner. Si elle ne contient aucun des deux mais qu'un fichier existe, celui-ci sera utilisé avec la méthode définie dans `method` si disponible (sinon, `GET`).
+> Une route doit inclure l'option `showFile` ou `redirect` pour fonctionner, sauf sur serveur dynamique. Si elle ne contient aucun des deux mais qu'un fichier existe, celui-ci sera utilisé.
 
 Exemple :
 
@@ -173,7 +172,7 @@ produira :
 
 ## Déploiement sur Vercel
 
-Vous pouvez déployer votre projet sur Vercel sans exécuter la commande `build` en utilisant le fichier `vercel.json` fourni dans le projet de départ, vous n'aurez qu'à lancer un déploiement et Vercel installera ROC, exécutera la commande `build` et servira les fichiers générés.
+Vous pouvez déployer votre projet sur Vercel sans exécuter la commande `build` en utilisant le fichier `vercel.json` fourni dans le projet de départ, vous n'aurez qu'à lancer un déploiement et Vercel installera ROC, exécutera la sous-commande `build` et servira les fichiers générés.
 
 
 ## Licence
