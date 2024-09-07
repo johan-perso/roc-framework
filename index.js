@@ -27,6 +27,9 @@ if(!fromCli) consola.level = -999
 
 // (CLI) Exécuter certaines fonctions selon les arguments
 if(fromCli){
+	var varResponse = initVariables()
+	if(varResponse != true) throw new Error(varResponse)
+
 	if(process.argv.slice(2).length == 0) consola.error("Aucune commande spécifiée. Liste des commandes disponibles : version, dev, build, start")
 	else if(process.argv.slice(2)[0] == "version") console.log(rocPkg?.version || 'Inconnu') // afficher la version
 	else if(process.argv.slice(2)[0] == "dev") startServer() // serveur de développement
@@ -47,7 +50,7 @@ function escapeHtml(unsafe){ // eslint-disable-line
 }
 
 // Initialisation de certaines variables
-var config = {}
+var config
 function initVariables(configParam = null){ // configParam doit être présent si on est sur un projet dynamique
 	var errorsReturned = ''
 
@@ -60,9 +63,11 @@ function initVariables(configParam = null){ // configParam doit être présent s
 
 	// Lire le fichier de configuration
 	try {
-		if(fromCli) config = require(path.join(projectPath, '..', "roc.config.js"))
-		else if(!fromCli && configParam) config = configParam
+		if(fromCli) var _config = require(path.join(projectPath, '..', "roc.config.js"))
+		else if(!fromCli && configParam) var _config = configParam
 		else if(!fromCli && !configParam) errorsReturned += "Roc a été initialisé sans configuration, le démarrage est impossible."
+
+		config = _config
 	} catch (err) {
 		consola.error(new Error("Impossible de lire le fichier de configuration 'roc.config.js'. Vous avez peut-être mal initialisé le projet dans ce dossier ?"))
 		errorsReturned += `Impossible de ${fromCli ? "lire le fichier de configuration 'roc.config.js'" : "déterminer la configuration de Roc"}. Vous avez peut-être mal initialisé le projet ${fromCli ? 'dans ce dossier ' : ''}?`
@@ -136,8 +141,8 @@ function getRoutes(){
 }
 
 // Générer le Tailwind CSS
-const postcss = require("postcss")
-const tailwind = require("tailwindcss")
+var postcss = require("postcss")
+var tailwind = require("tailwindcss")
 var tailwindCSS
 async function generateTailwindCSS(){
 	try {
@@ -152,6 +157,8 @@ async function generateTailwindCSS(){
 		if(fs.existsSync(path.join(projectPath, "styles.css"))) extraCSS += fs.readFileSync(path.join(projectPath, "style.css"), "utf8")
 
 		// Générer et retourner le CSS
+		if(!postcss) postcss = require("postcss")
+		if(!tailwind) tailwind = require("tailwindcss")
 		const result = await postcss([
 			tailwind({ config: path.join(projectPath, '..', "tailwind.config.js") }),
 		]).process(`@tailwind base;@tailwind components;@tailwind utilities;${extraCSS}`, { from: undefined })
@@ -252,7 +259,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		}
 
 		// On génère le CSS
-		generateTailwindCSS()
+		await generateTailwindCSS()
 	}
 
 	// Importer le serveur
@@ -322,7 +329,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 			if(config.useTailwindCSS && (path.endsWith(".html") || path.endsWith(".css") || path.endsWith(".js"))) await generateTailwindCSS()
 
 			// Live reload
-			if(event == "change") wss.clients.forEach(client => client.send("re"))
+			if(event == "change" && wss?.clients) wss.clients.forEach(client => client.send("re"))
 
 			// Si on a un changement du nombre de routes, ou une modification dans le routing, on redémarre le serveur
 			if(path.endsWith("_routing.json") || routesCount != getRoutes().length){
@@ -564,7 +571,10 @@ async function buildRoutes(){
 			// Afficher des avertissements dans certaines situations
 			if(content){
 				// Vérifier l'attribut "lang=" sur la balise <html> des fichiers .html
-				if(route?.file?.endsWith(".html") && content && content.includes("<html") && !content.includes("<html lang=")) consola.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas d'attribut "lang=" sur la balise <html>`)
+				if(route?.file?.endsWith(".html") && content && content.includes("<html")){
+					var htmlTagLine = content.split("\n").filter(l => l.includes("<html"))[0]
+					if(htmlTagLine && !htmlTagLine.includes("lang=\"")) consola.warn(`Le fichier ${chalk.blue(route.file)} ne contient pas d'attribut "lang=" sur la balise <html>`)
+				}
 
 				// Vérifier certaines métadonnées
 				if(route?.file?.endsWith(".html") && content && content.includes("<html")){
