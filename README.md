@@ -1,3 +1,7 @@
+<!-- TODO: refaire le readme pour parler de roc dynamic -->
+<!-- TODO: prévenir que pour l'instant on ne peut pas faire plusieurs serveurs rocs dynamic dans le même projet puisque j'utilise pas bcp this -->
+<!-- TODO: parler de l'interception des requêtes -->
+
 # ROC *(solid like a rock)*
 
 ROC est un générateur de site imaginé pour être le plus facile à utiliser pour ceux qui ont l'habitude de développer des sites web avec du HTML et du JavaScript.
@@ -80,6 +84,82 @@ La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fich
 * `minifyHtml` | `boolean` : détermine si le code HTML doit être minifié ou non (Tailwind CSS est toujours minifié)
 * `devPort` | `number` : port du serveur de développement (la variable d'environnement `PORT` restera prioritaire)
 * `devOpenBrowser` | `boolean` : détermine si le navigateur doit s'ouvrir automatiquement lors du lancement du serveur de développement
+
+
+---
+
+
+## (Dynamique) Création d'un projet
+
+Il n'existe pas encore d'outil capable de créer un projet automatiquement, mais il est possible de créer un projet manuellement :
+
+```bash
+# Optionnel : créer un nouveau dossier
+mkdir mon-projet
+cd mon-projet
+
+# Vous devrez télécharger l'exemple présent dans le dossier "examples/static"
+# GUI (Web) : https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2Fjohan-perso%2Froc-framework%2Ftree%2Fmain%2Fexamples%2Fdynamic
+git clone github.com/johan-perso/roc-framework --branch main --single-branch roc-framework-starter
+mv roc-framework-starter/examples/dynamic/* .
+rm -rf roc-framework-starter
+
+# Installer les dépendances
+npm install
+npm install roc-framework@latest
+# ou pnpm install && pnpm install roc-framework@latest
+
+# Lancer le serveur de développement
+npm run dev
+# ou pnpm dev
+```
+
+> Vous pourrez commencez à coder en modifiant le fichier `index.js` et `public/index.html` !
+
+
+## (Dynamique) Fonctionnement
+
+```js
+var roc = require('roc')
+
+var server = new roc.server({
+	port: 3000, // process.env.PORT restera prioritaire dans tous les cas
+	logger: true, // important, vous ne verrez pas les erreurs si désactivé
+	path: './public', // chemin contenant vos pages web
+
+	interceptRequests: true, // vous ne pourrez pas répondre manuellement aux requêtes si désactivé. Si activé, vous *devrez* répondre manuellement aux requêtes
+
+	liveReloadEnabled: true, // sera désactivé si process.env.NODE_ENV = 'production'
+	useTailwindCSS: true,
+	minifyHtml: true, // les pages HTML et les fichiers JavaScript seront minifiés, Tailwind CSS sera minifié et inclut dans la page, les autres fichiers ne seront pas impactés
+})
+
+server.on('ready', () => { console.log('received msg ready!') }) // facultatif, permet de savoir quand le serveur est démarré
+server.on('request', (req, res) => { // requis si l'option interceptRequests est à true
+	// Ici, vous pourrez répondre aux requêtes que vous recevez en fonction de vos critières
+	// Vous pouvez lire la requête `req` et y répondre avec les fonctions présentes dans `res`
+
+	// res.initialAction = { type: 'sendHtml' | 'sendJs' | 'sendFile' | 'redirect' | '404', content: string }
+	// res.send(bool statusCode, string content, object options)
+	// res.sendFile(bool statusCode, string filePath, object options)
+	// res.json(bool statusCode, object content, object options)
+	// res.redirect(bool statusCode, string url, object options)
+	// res.send404()
+
+	// à l'heure actuelle, `options` ne permet que de définir des `headers` retournés avec la réponse
+
+	if(res.initialAction.type == 'sendHtml') res.send(200, res.initialAction.content.replaceAll('ROC', 'ROC Dynamic')) // TODO (user): à remplacer, c'est un simple exemple
+	if(res.initialAction.type == 'sendJs') res.send(200, res.initialAction.content, { headers: { 'Content-Type': 'application/javascript' } })
+	if(res.initialAction.type == 'sendFile') res.sendFile(200, res.initialAction.content)
+	if(res.initialAction.type == 'redirect') res.redirect(302, res.initialAction.content)
+	if(res.initialAction.type == '404') res.send404()
+})
+
+server.start()
+```
+
+
+---
 
 
 ## Utilisation de Tailwind CSS
@@ -170,9 +250,16 @@ produira :
 ```
 
 
-## Déploiement sur Vercel
+## Déploiement
 
-Vous pouvez déployer votre projet sur Vercel sans exécuter la commande `build` en utilisant le fichier `vercel.json` fourni dans le projet de départ, vous n'aurez qu'à lancer un déploiement et Vercel installera ROC, exécutera la sous-commande `build` et servira les fichiers générés.
+### Vercel
+
+Vous pouvez déployer votre projet sur Vercel à l'aide du fichier `vercel.json` fourni dans l'exemple de base : vous n'aurez qu'à lancer un déploiement avec `vercel --prod` ou l'intégration Git, et Vercel s'occupera du reste.
+
+### Ailleurs
+
+**Statique :** pour servir votre site, vous pouvez utiliser un simple hébergeur web et lui donner les fichiers présents dans le dossier `build` après la phase de build. Sur votre infrastructure, vous pouvez utiliser un serveur web tel que Nginx ou Apache pour servir les fichiers.  
+**Dynamique :** vous aurez besoin d'une machine en capacité d'exécuter votre fichier JavaScript (un VPS par exemple), ROC s'occupera du serveur et vous n'aurez pas besoin de Nginx ou d'alternatives similaires.
 
 
 ## Licence

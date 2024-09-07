@@ -3,12 +3,14 @@
     "private": true,
     "version": "1.0.0",
     "scripts": {
-        "start": "roc start",
-        "dev": "roc dev",
-        "build": "roc build"
+        "start": "node index.js",
+        "dev": "nodemon index.js"
     },
     "dependencies": {
         "daisyui": "4.12.10",
         "roc-framework": "latest"
+    },
+    "devDependencies": {
+        "nodemon": "2.0.22"
     }
 }
