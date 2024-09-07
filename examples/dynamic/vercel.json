@@ -1,0 +1,14 @@
+{
+	"version": 2,
+	"installCommand": "pnpm install --no-frozen-lockfile",
+	"builds": [{
+	  "src": "./index.js",
+	  "use": "@vercel/node"
+	}],
+	"routes": [
+	  {
+		"src": "/.*",
+		"dest": "index.js"
+	  }
+	]
+}
