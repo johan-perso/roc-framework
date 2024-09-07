@@ -364,6 +364,8 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 			else if(file.options){
 				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
 				routes.push({ path: route, method: file.method || "GET", options: file.options }) // ajouter la nouvelle
+			} else if(!fromCli){ // permettre de déclarer des routes sans fichier (dynamique)
+				routes.push({ path: route, method: file.method || "GET", options: file.options })
 			}
 		})
 	}
@@ -456,6 +458,10 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 							if(options.headers) res.set(options.headers)
 							res.redirect(statusCode, content)
 						},
+						send404: () => {
+							if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(generateHTML(path.join(projectPath, "404.html"), port))
+							else res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
+						},
 						initialAction: { type: actionType, content: actionContent },
 					}
 
@@ -470,7 +476,10 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					if(actionType == 'sendJs') return res.header("Content-Type", "application/javascript").send(actionContent)
 					if(actionType == 'sendFile') return res.sendFile(actionContent)
 					if(actionType == 'redirect') return res.redirect(actionContent)
-					if(actionType == '404') return res.status(404).send(actionContent)
+					if(actionType == '404'){
+						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), port))
+						return res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
+					}
 				}
 			})
 		}
