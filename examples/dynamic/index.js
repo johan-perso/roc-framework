@@ -1,4 +1,4 @@
-var roc = require('../../index.js') // TODO: mettre juste "roc", et indiquer dans le readme de télécharger directement ce dossier comme starter
+var roc = require('roc')
 
 var server = new roc.server({
 	port: 3000, // process.env.PORT restera prioritaire dans tous les cas

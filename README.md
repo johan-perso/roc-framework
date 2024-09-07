@@ -1,7 +1,3 @@
-<!-- TODO: refaire le readme pour parler de roc dynamic -->
-<!-- TODO: prévenir que pour l'instant on ne peut pas faire plusieurs serveurs rocs dynamic dans le même projet puisque j'utilise pas bcp this -->
-<!-- TODO: parler de l'interception des requêtes -->
-
 # ROC *(solid like a rock)*
 
 ROC est un générateur de site imaginé pour être le plus facile à utiliser pour ceux qui ont l'habitude de développer des sites web avec du HTML et du JavaScript.
@@ -157,6 +153,8 @@ server.on('request', (req, res) => { // requis si l'option interceptRequests est
 
 server.start()
 ```
+
+> Roc Dynamic a été créé par dessus le CLI, il est donc compliqué de démarrer plusieurs serveurs dans le même processus.
 
 
 ---
