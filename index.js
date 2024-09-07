@@ -148,8 +148,7 @@ var tailwindCSS
 async function generateTailwindCSS(){
 	try {
 		// Vérifier la configuration
-		var twConfigContent = fs.readFileSync(path.join(projectPath, '..', "tailwind.config.js"))
-		if(twConfigContent) var twConfig = eval(twConfigContent.toString())
+		var twConfig = require(path.join(projectPath, '..', "tailwind.config.js"))
 		if(twConfig?.daisyui?.logs != false) return consola.warn("Il est recommendé de désactiver les logs de DaisyUI dans le fichier de configuration Tailwind CSS: daisyui: { logs: false }")
 
 		// Obtenir le CSS supplémentaire (style.css et styles.css)
