@@ -7,6 +7,7 @@ const sqwish = require("sqwish")
 const htmlMinify = require("html-minifier").minify
 const chalk = require("chalk")
 const { consola } = require("consola")
+const compression = require('compression')
 const cheerio = require("cheerio")
 const rocPkg = require("./package.json")
 var Terser
@@ -71,6 +72,7 @@ function initVariables(configParam = null){ // configParam doit être présent s
 		config = _config
 	} catch (err) {
 		consola.error(new Error("Impossible de lire le fichier de configuration 'roc.config.js'. Vous avez peut-être mal initialisé le projet dans ce dossier ?"))
+		console.error(err)
 		errorsReturned += `Impossible de ${fromCli ? "lire le fichier de configuration 'roc.config.js'" : "déterminer la configuration de Roc"}. Vous avez peut-être mal initialisé le projet ${fromCli ? 'dans ce dossier ' : ''}?`
 	}
 
@@ -266,6 +268,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	const express = require("express")
 	app = express()
 	app.disable("x-powered-by")
+	if(!isDev) app.use(compression())
 	await new Promise((resolve, reject) => {
 		server = null
 		server = app.listen(port, async () => {
