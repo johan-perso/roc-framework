@@ -364,6 +364,9 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 
 		// On les ajoute si on en a
 		if(routing) routing.forEach(([route, file]) => {
+			// Ajouter un slash au début de la route
+			if(!route.startsWith('/')) route = `/${route}`
+
 			// On ajoute la route
 			if(file.options?.showFile){
 				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
