@@ -10,16 +10,21 @@ const { consola } = require("consola")
 const compression = require('compression')
 const cheerio = require("cheerio")
 const rocPkg = require("./package.json")
+require("dotenv").config()
+
 var Terser
+var minifiedFiles = {}
+
 var projectPkg = null
 var projectPath = path.join(process.cwd(), 'public')
+
 var globalLiveReloadEnabled = false
+
 var _dynamicEmitter
 var _events = {
 	ready: [],
 	request: []
 }
-require("dotenv").config()
 
 // Si on exécute depuis le CLI
 var fromCli = require.main === module
@@ -147,6 +152,7 @@ function getRoutes(){
 var postcss = require("postcss")
 var tailwind = require("tailwindcss")
 var tailwindCSS
+var minifiedTailwindCSS
 async function generateTailwindCSS(){
 	try {
 		// Vérifier la configuration
@@ -210,9 +216,9 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 
 	// Si on utilise Tailwind CSS, on va minifier le CSS et l'insérer dans l'HTML
 	if(config.useTailwindCSS && !options.disableTailwind && tailwindCSS){
-		var minifiedCSS = sqwish.minify(tailwindCSS)
-		if(domHead) domHead.append(`<style>${minifiedCSS}</style>`)
-		else if(domBody) domBody.append(`<style>${minifiedCSS}</style>`)
+		if(!minifiedTailwindCSS) minifiedTailwindCSS = sqwish.minify(tailwindCSS)
+		if(domHead) domHead.append(`<style>${minifiedTailwindCSS}</style>`)
+		else if(domBody) domBody.append(`<style>${minifiedTailwindCSS}</style>`)
 	}
 
 	// Transformer le DOM en HTML
@@ -410,7 +416,14 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					} else if(route.file.endsWith(".js")){
 						actionType = 'sendJs'
 						actionContent = fs.readFileSync(route.file, "utf8")
-						if(!route.options?.preventMinify) actionContent = (await Terser.minify(actionContent))?.code || actionContent
+
+						if(!route.options?.preventMinify){
+							if(minifiedFiles[route.file]) actionContent = minifiedFiles[route.file]
+							else {
+								actionContent = (await Terser.minify(actionContent))?.code || actionContent
+								minifiedFiles[route.file] = actionContent
+							}
+						} 
 					} else {
 						actionType = 'sendFile'
 						actionContent = route.file // Sinon on envoie le fichier
