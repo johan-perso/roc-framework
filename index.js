@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable default-param-last */
 
 // Importer les modules
 const fs = require("fs")
@@ -7,7 +8,7 @@ const sqwish = require("sqwish")
 const htmlMinify = require("html-minifier").minify
 const chalk = require("chalk")
 const { consola } = require("consola")
-const compression = require('compression')
+const compression = require("compression")
 const cheerio = require("cheerio")
 const rocPkg = require("./package.json")
 require("dotenv").config()
@@ -16,7 +17,7 @@ var Terser
 var minifiedFiles = {}
 
 var projectPkg = null
-var projectPath = path.join(process.cwd(), 'public')
+var projectPath = path.join(process.cwd(), "public")
 
 var globalLiveReloadEnabled = false
 
@@ -30,7 +31,7 @@ var _events = {
 var fromCli = require.main === module
 if(fromCli && process.isTTY) process.stdin.setRawMode(false) // j'sais même pas comment mais ça règle v'là les problèmes avec les raccourcis clavier (genre CTRL+C qui quitte le programme nativement)
 if(!fromCli) consola.level = -999
-var isDev = (fromCli && process.argv.slice(2)[0] == "dev") || (!fromCli && process.env.NODE_ENV != 'production') == true
+var isDev = (fromCli && process.argv.slice(2)[0] == "dev") || (!fromCli && process.env.NODE_ENV != "production") == true
 
 // (CLI) Exécuter certaines fonctions selon les arguments
 if(fromCli){
@@ -38,7 +39,7 @@ if(fromCli){
 	if(varResponse != true) throw new Error(varResponse)
 
 	if(process.argv.slice(2).length == 0) consola.error("Aucune commande spécifiée. Liste des commandes disponibles : version, dev, build, start")
-	else if(process.argv.slice(2)[0] == "version") console.log(rocPkg?.version || 'Inconnu') // afficher la version
+	else if(process.argv.slice(2)[0] == "version") console.log(rocPkg?.version || "Inconnu") // afficher la version
 	else if(process.argv.slice(2)[0] == "dev") startServer() // serveur de développement
 	else if(process.argv.slice(2)[0] == "build") buildRoutes() // build les fichiers
 	else if(process.argv.slice(2)[0] == "start"){
@@ -59,18 +60,18 @@ function escapeHtml(unsafe){ // eslint-disable-line
 // Initialisation de certaines variables
 var config
 function initVariables(configParam = null){ // configParam doit être présent si on est sur un projet dynamique
-	var errorsReturned = ''
+	var errorsReturned = ""
 
 	// Obtenir le package.json du projet actuel
 	if(!fromCli) try {
-		projectPkg = require(path.join(projectPath, '..', 'package.json'))
+		projectPkg = require(path.join(projectPath, "..", "package.json"))
 	} catch (err) {
 		consola.warn("Le fichier package.json de votre projet n'a pas pu être lu. La version du site ne sera pas retournée dans les métadonnées.")
 	}
 
 	// Lire le fichier de configuration
 	try {
-		if(fromCli) var _config = require(path.join(projectPath, '..', "roc.config.js"))
+		if(fromCli) var _config = require(path.join(projectPath, "..", "roc.config.js"))
 		else if(!fromCli && configParam) var _config = configParam
 		else if(!fromCli && !configParam) errorsReturned += "Roc a été initialisé sans configuration, le démarrage est impossible."
 
@@ -78,11 +79,11 @@ function initVariables(configParam = null){ // configParam doit être présent s
 	} catch (err) {
 		consola.error(new Error("Impossible de lire le fichier de configuration 'roc.config.js'. Vous avez peut-être mal initialisé le projet dans ce dossier ?"))
 		console.error(err)
-		errorsReturned += `Impossible de ${fromCli ? "lire le fichier de configuration 'roc.config.js'" : "déterminer la configuration de Roc"}. Vous avez peut-être mal initialisé le projet ${fromCli ? 'dans ce dossier ' : ''}?`
+		errorsReturned += `Impossible de ${fromCli ? "lire le fichier de configuration 'roc.config.js'" : "déterminer la configuration de Roc"}. Vous avez peut-être mal initialisé le projet ${fromCli ? "dans ce dossier " : ""}?`
 	}
 
 	// Si on utilise pas Tailwind CSS, on recommande de supprimer le fichier de config
-	if(!config.useTailwindCSS && fs.existsSync(path.join(projectPath, '..', "tailwind.config.js"))) consola.warn("Vous avez désactivé l'utilisation de Tailwind CSS, vous pouvez supprimer le fichier \"tailwind.config.js\"")
+	if(!config.useTailwindCSS && fs.existsSync(path.join(projectPath, "..", "tailwind.config.js"))) consola.warn("Vous avez désactivé l'utilisation de Tailwind CSS, vous pouvez supprimer le fichier \"tailwind.config.js\"")
 
 	// Si on a des erreurs, on les retourne
 	if(errorsReturned) return errorsReturned
@@ -156,7 +157,7 @@ var minifiedTailwindCSS
 async function generateTailwindCSS(){
 	try {
 		// Vérifier la configuration
-		var twConfig = require(path.join(projectPath, '..', "tailwind.config.js"))
+		var twConfig = require(path.join(projectPath, "..", "tailwind.config.js"))
 		if(twConfig?.daisyui?.logs != false) return consola.warn("Il est recommendé de désactiver les logs de DaisyUI dans le fichier de configuration Tailwind CSS: daisyui: { logs: false }")
 
 		// Obtenir le CSS supplémentaire (style.css et styles.css)
@@ -168,7 +169,7 @@ async function generateTailwindCSS(){
 		if(!postcss) postcss = require("postcss")
 		if(!tailwind) tailwind = require("tailwindcss")
 		const result = await postcss([
-			tailwind({ config: path.join(projectPath, '..', "tailwind.config.js") }),
+			tailwind({ config: path.join(projectPath, "..", "tailwind.config.js") }),
 		]).process(`@tailwind base;@tailwind components;@tailwind utilities;${extraCSS}`, { from: undefined })
 		tailwindCSS = result.css
 		return result.css
@@ -261,8 +262,8 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	// Si on utilise Tailwind CSS
 	if(config.useTailwindCSS){
 		// On vérifie si la config de Tailwind CSS existe
-		if(!fs.existsSync(path.join(projectPath, '..', "tailwind.config.js"))){
-			fs.writeFileSync(path.join(projectPath, '..', "tailwind.config.js"), "/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n\tcontent: ['./**/*.{html,js}'],\n\tplugins: [require('daisyui')],\n\tdaisyui: {\n\t\tlogs: false,\n\t\tthemes: [\n\t\t\t\"dark\"\n\t\t],\n\t}\n}")
+		if(!fs.existsSync(path.join(projectPath, "..", "tailwind.config.js"))){
+			fs.writeFileSync(path.join(projectPath, "..", "tailwind.config.js"), "/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n\tcontent: ['./**/*.{html,js}'],\n\tplugins: [require('daisyui')],\n\tdaisyui: {\n\t\tlogs: false,\n\t\tthemes: [\n\t\t\t\"dark\"\n\t\t],\n\t}\n}")
 			consola.success("Fichier de configuration Tailwind CSS créé")
 		}
 
@@ -279,7 +280,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		server = null
 		server = app.listen(port, async () => {
 			// Afficher les boxes dans la console
-			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? 'de développement' : 'dynamique'} démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
+			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
 			fromCli && process.stdin.isTTY ? consola.box(`${chalk.bgBlueBright(" ROC ")} Raccourcis disponibles :\n\n ${chalk.dim("━")} ${chalk.bold("r")}         ${chalk.blueBright("Redémarre le serveur en relancant les analyses")}\n ${chalk.dim("━")} ${chalk.bold("q")}         ${chalk.blueBright("Ferme le serveur puis quitte le processus")}\n ${chalk.dim("━")} ${chalk.bold("t")}         ${chalk.blueBright("Ouvre un tunnel accessible hors du réseau")}\n ${chalk.dim("━")} ${chalk.bold("CTRL+L")}    ${chalk.blueBright("Vide le contenu de la console")}`) : `\n${chalk.yellow("⚠")} Les raccourcis clavier ne sont pas disponibles dans cet environnement.\n`
 
 			// Si on a déjà démarré le serveur, on va juste redémarrer
@@ -328,8 +329,8 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		const chokidar = require("chokidar")
 		chokidar.watch([
 			path.join(projectPath),
-			path.join(projectPath, '..', "roc.config.js"),
-			path.join(projectPath, '..', "tailwind.config.js")
+			path.join(projectPath, "..", "roc.config.js"),
+			path.join(projectPath, "..", "tailwind.config.js")
 		], { ignoreInitial: true, ignorePermissionErrors: true }).on("all", async (event, path) => {
 			// Log
 			if(fromCli && path.endsWith("roc.config.js")) consola.warn("Le fichier de configuration roc.config.js a été modifié, redémarrez l'ensemble du processus pour appliquer les changements")
@@ -365,12 +366,12 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		// On les ajoute si on en a
 		if(routing) routing.forEach(([route, file]) => {
 			// Ajouter un slash au début de la route
-			if(!route.startsWith('/')) route = `/${route}`
+			if(!route.startsWith("/")) route = `/${route}`
 
 			// On ajoute la route
 			if(file.options?.showFile){
 				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
-				routes.push({ path: route, method: file.method, file: path.join(projectPath, '..', file.options.showFile), options: file.options }) // ajouter la nouvelle
+				routes.push({ path: route, method: file.method, file: path.join(projectPath, "..", file.options.showFile), options: file.options }) // ajouter la nouvelle
 			}
 			else if(!file.options && file.method) routes.filter(r => r.path == route.path)[0].method = file.method // modifier l'ancienne
 			else if(file.options){
@@ -403,21 +404,21 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		// Fonction pour ajouter la route
 		function addRoute(method, routePath){
 			app[method](routePath, async (req, res) => {
-				var actionType = ''
-				var actionContent = ''
+				var actionType = ""
+				var actionContent = ""
 
 				// Si on a pas de "file", on vérifie si on doit pas faire une redirection
 				if(!route.file && route.options?.redirect){
-					actionType = 'redirect'
+					actionType = "redirect"
 					actionContent = route?.options?.redirect
 				}
 				// Sinon, on envoie le fichier
 				else if(route.file){
 					if(route.file.endsWith(".html")){
-						actionType = 'sendHtml'
+						actionType = "sendHtml"
 						actionContent = generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
 					} else if(route.file.endsWith(".js")){
-						actionType = 'sendJs'
+						actionType = "sendJs"
 						actionContent = fs.readFileSync(route.file, "utf8")
 
 						if(!route.options?.preventMinify){
@@ -426,15 +427,15 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 								actionContent = (await Terser.minify(actionContent))?.code || actionContent
 								minifiedFiles[route.file] = actionContent
 							}
-						} 
+						}
 					} else {
-						actionType = 'sendFile'
+						actionType = "sendFile"
 						actionContent = route.file // Sinon on envoie le fichier
 					}
 				}
 				// Si on a pas su quoi faire
 				else {
-					actionType = '404'
+					actionType = "404"
 					actionContent = `404: la route "${route.path}" est mal configuré.`
 				}
 
@@ -489,13 +490,13 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					} catch (err) {
 						consola.error(err?.message || err?.toString() || err)
 					}
-					return
+
 				} else { // sinon, on effectue les actions de base (sans interception)
-					if(actionType == 'sendHtml') return res.send(actionContent)
-					if(actionType == 'sendJs') return res.header("Content-Type", "application/javascript").send(actionContent)
-					if(actionType == 'sendFile') return res.sendFile(actionContent)
-					if(actionType == 'redirect') return res.redirect(actionContent)
-					if(actionType == '404'){
+					if(actionType == "sendHtml") return res.send(actionContent)
+					if(actionType == "sendJs") return res.header("Content-Type", "application/javascript").send(actionContent)
+					if(actionType == "sendFile") return res.sendFile(actionContent)
+					if(actionType == "redirect") return res.redirect(actionContent)
+					if(actionType == "404"){
 						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), port))
 						return res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 					}
@@ -520,12 +521,12 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 // Générer les routes pour utiliser le site statiquement
 async function buildRoutes(){
 	// Si le dossier de build n'existe pas, on le crée
-	if(!fs.existsSync(path.join(projectPath, '..', config.buildDir))) fs.mkdirSync(path.join(projectPath, '..', config.buildDir))
-	consola.info(`Dossier de build: ${path.join(projectPath, '..', config.buildDir)}`)
+	if(!fs.existsSync(path.join(projectPath, "..", config.buildDir))) fs.mkdirSync(path.join(projectPath, "..", config.buildDir))
+	consola.info(`Dossier de build: ${path.join(projectPath, "..", config.buildDir)}`)
 
 	// Si on a un fichier dans le dossier build, on supprime tout
-	if(fs.readdirSync(path.join(projectPath, '..', config.buildDir)).length > 0){
-		walk(path.join(projectPath, '..', config.buildDir)).forEach(file => {
+	if(fs.readdirSync(path.join(projectPath, "..", config.buildDir)).length > 0){
+		walk(path.join(projectPath, "..", config.buildDir)).forEach(file => {
 			fs.unlinkSync(file)
 		})
 		consola.info("Fichiers du précédent build supprimés")
@@ -575,7 +576,7 @@ async function buildRoutes(){
 			if(file.method) return consola.warn(`Route ${chalk.blue(route)} : vous ne pouvez pas utiliser de méthodes dans un site statique.`)
 
 			// Et on en ajoute une nouvelle
-			if(file.options?.showFile) routes.push({ path: route, file: path.join(projectPath, '..', file.options.showFile), options: file.options })
+			if(file.options?.showFile) routes.push({ path: route, file: path.join(projectPath, "..", file.options.showFile), options: file.options })
 			else if(file.options) routes.push({ path: route, options: file.options })
 		})
 	}
@@ -618,19 +619,19 @@ async function buildRoutes(){
 			// On écrit le fichier HTML
 			if(content){
 				// Créer les dossiers si besoin
-				if(route.path.includes("/") && !fs.existsSync(path.join(projectPath, '..', config.buildDir, route.path.split("/").slice(0, -1).join("/")))){
-					fs.mkdirSync(path.join(projectPath, '..', config.buildDir, route.path.split("/").slice(0, -1).join("/")), { recursive: true })
+				if(route.path.includes("/") && !fs.existsSync(path.join(projectPath, "..", config.buildDir, route.path.split("/").slice(0, -1).join("/")))){
+					fs.mkdirSync(path.join(projectPath, "..", config.buildDir, route.path.split("/").slice(0, -1).join("/")), { recursive: true })
 				}
 
 				// Écrire le fichier
-				fs.writeFileSync(path.join(projectPath, '..', config.buildDir, route.path), content.toString())
+				fs.writeFileSync(path.join(projectPath, "..", config.buildDir, route.path), content.toString())
 			}
 
 			// Si on a pas de contenu, c'est car c'est pas un fichier HTML, donc on copie le fichier
 			else {
 				// Si on doit créer des dossiers
-				if(route.path.includes("/") && !fs.existsSync(path.join(projectPath, '..', config.buildDir, route.path.split("/").slice(0, -1).join("/")))){
-					fs.mkdirSync(path.join(projectPath, '..', config.buildDir, route.path.split("/").slice(0, -1).join("/")), { recursive: true })
+				if(route.path.includes("/") && !fs.existsSync(path.join(projectPath, "..", config.buildDir, route.path.split("/").slice(0, -1).join("/")))){
+					fs.mkdirSync(path.join(projectPath, "..", config.buildDir, route.path.split("/").slice(0, -1).join("/")), { recursive: true })
 				}
 
 				// Si c'est un fichier JS et qu'on veut le minifier
@@ -639,11 +640,11 @@ async function buildRoutes(){
 					var minifiedJs = await Terser.minify(fs.readFileSync(route.file, "utf8"))
 
 					// Écrire le fichier
-					fs.writeFileSync(path.join(projectPath, '..', config.buildDir, route.path), minifiedJs.code)
+					fs.writeFileSync(path.join(projectPath, "..", config.buildDir, route.path), minifiedJs.code)
 				}
 
 				// Sinon on va juste copier le fichier
-				else fs.copyFileSync(route.file, path.join(projectPath, '..', config.buildDir, route.path))
+				else fs.copyFileSync(route.file, path.join(projectPath, "..", config.buildDir, route.path))
 			}
 
 			// Si c'était le dernier fichier
@@ -654,7 +655,7 @@ async function buildRoutes(){
 	consola.info("Fichiers générés dans le dossier de build")
 
 	// Rajouter un fichier .nojekyll pour GitHub Pages
-	fs.writeFileSync(path.join(projectPath, '..', config.buildDir, ".nojekyll"), "")
+	fs.writeFileSync(path.join(projectPath, "..", config.buildDir, ".nojekyll"), "")
 
 	// On finit
 	consola.success("Build terminé !")
@@ -691,11 +692,11 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	if(config.devOpenBrowser) require("open")(`http://127.0.0.1:${port}`)
 
 	// On ajoute les routes
-	staticServer.use(express.static(path.join(projectPath, '..', config.buildDir)))
+	staticServer.use(express.static(path.join(projectPath, "..", config.buildDir)))
 
 	// On ajoute la page 404
 	staticServer.use((req, res) => {
-		if(fs.existsSync(path.join(projectPath, '..', config.buildDir, "404.html"))) return res.status(404).sendFile(path.join(projectPath, '..', config.buildDir, "404.html"))
+		if(fs.existsSync(path.join(projectPath, "..", config.buildDir, "404.html"))) return res.status(404).sendFile(path.join(projectPath, "..", config.buildDir, "404.html"))
 		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 	})
 
@@ -706,7 +707,7 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	})
 
 	// On vérifie que le dossier "build" existe et contient des fichiers
-	if(!fs.existsSync(path.join(projectPath, '..', config.buildDir))) return consola.warn(`Le dossier "${config.buildDir}" n'existe pas/est vide. Vous devez utiliser la commande "roc build" avant de démarrer le serveur statique.`)
+	if(!fs.existsSync(path.join(projectPath, "..", config.buildDir))) return consola.warn(`Le dossier "${config.buildDir}" n'existe pas/est vide. Vous devez utiliser la commande "roc build" avant de démarrer le serveur statique.`)
 }
 
 /**
@@ -726,7 +727,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	if(!options.path) throw new Error("Vous devez fournir un chemin valide vers les fichiers de votre projet")
 	try {
 		fs.accessSync(options.path)
-		if(!fs.lstatSync(options.path).isDirectory()) throw new Error('Le chemin fourni doit mener vers un dossier et non un fichier');
+		if(!fs.lstatSync(options.path).isDirectory()) throw new Error("Le chemin fourni doit mener vers un dossier et non un fichier")
 	} catch (err) {
 		throw new Error("Le chemin fourni n'est pas valide, celui-ci doit correspondre à un dossier existant")
 	}
@@ -768,4 +769,4 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 
 	return this
 }
-module.exports = { server: RocServer, version: rocPkg?.version || 'Inconnu' }
+module.exports = { server: RocServer, version: rocPkg?.version || "Inconnu" }
