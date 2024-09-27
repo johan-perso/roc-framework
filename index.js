@@ -767,6 +767,16 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 		this._emit("ready")
 	}
 
+	// Générer le contenu d'une route
+	this.generateHTML = function(routePath){
+		var route = routes.find(r => r.path == routePath)
+		if(!route) return false
+		if(!route?.file) return false
+
+		return generateHTML(route.file, server?.address ? server?.address()?.port : options?.port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
+	}
+	// TODO: aussi pr le js
+
 	return this
 }
 module.exports = { server: RocServer, version: rocPkg?.version || "Inconnu" }
