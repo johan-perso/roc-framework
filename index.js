@@ -769,13 +769,39 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 
 	// Générer le contenu d'une route
 	this.generateHTML = function(routePath){
+		if(!routePath) return false
 		var route = routes.find(r => r.path == routePath)
 		if(!route) return false
 		if(!route?.file) return false
 
 		return generateHTML(route.file, server?.address ? server?.address()?.port : options?.port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
 	}
-	// TODO: aussi pr le js
+	this.generateJS = async function(routePath){
+		if(!routePath) return false
+		var route = routes.find(r => r.path == routePath)
+		if(!route) return false
+		if(!route?.file) return false
+
+		var content
+		try {
+			content = fs.readFileSync(route.file, "utf8")
+		} catch (err) {
+			content = null
+		}
+
+		if(content) try {
+			if(!route.options?.preventMinify){
+				if(minifiedFiles[route.file]) content = minifiedFiles[route.file]
+				else {
+					if(!Terser) Terser = require("terser")
+					content = (await Terser.minify(content))?.code || content
+					minifiedFiles[route.file] = content
+				}
+			}
+		} catch (err) {}
+
+		return content
+	}
 
 	return this
 }

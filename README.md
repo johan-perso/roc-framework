@@ -152,6 +152,14 @@ server.on('request', (req, res) => { // requis si l'option interceptRequests est
 })
 
 server.start()
+
+/*
+	Vous pouvez aussi générer le contenu HTML d'une page web en utilisant la méthode :
+	`server.generateHtml(routePath: string)`
+
+	Un fichier JavaScript peut être envoyé tel quel, ou minifié (si non désactivé) avec la méthode :
+	`await server.generateJs(routePath: string)`
+*/
 ```
 
 > Roc Dynamic a été créé par dessus le CLI, il est donc compliqué de démarrer plusieurs serveurs dans le même processus.
@@ -253,6 +261,8 @@ produira :
 ### Vercel
 
 Vous pouvez déployer votre projet sur Vercel à l'aide du fichier `vercel.json` fourni dans l'exemple de base : vous n'aurez qu'à lancer un déploiement avec `vercel --prod` ou l'intégration Git, et Vercel s'occupera du reste.
+
+> Déconseillé pour les projets dynamiques.
 
 ### Ailleurs
 
