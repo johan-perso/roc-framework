@@ -750,6 +750,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 
 	// Recréer le logger si on l'a activé
 	if(options.logger) consola.level = 3
+	this.isDev = isDev
 
 	// Event handling
 	this.on = function(event, callback) {
