@@ -672,6 +672,7 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	const express = require("express")
 	staticServer = express()
 	staticServer.disable("x-powered-by")
+	staticServer.use(compression())
 	await new Promise((resolve, reject) => {
 		staticServer.listen(port, async () => {
 			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur statique démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}`)
