@@ -1,4 +1,4 @@
-var roc = require("roc")
+var roc = require("roc-framework")
 
 var server = new roc.server({
 	port: 3000, // process.env.PORT restera prioritaire dans tous les cas
