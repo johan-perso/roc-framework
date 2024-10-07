@@ -234,6 +234,9 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 		consola.warn(`Erreur lors de l'évaluation du code dans le fichier ${routeFile}`, err)
 	}
 
+	// Si on est en mode dev, on va pas garder le TailwindCSS minifié en cache
+	if(fromCli && process.argv.slice(2)[0] == "dev") minifiedTailwindCSS = null
+
 	// On retourne le code HTML
 	try {
 		return ((config.minifyHtml && !options.preventMinify) || options.forceMinify) ? htmlMinify(html, { useShortDoctype: true, removeStyleLinkTypeAttributes: true, removeScriptTypeAttributes: true, removeComments: true, minifyURLs: true, minifyJS: true, minifyCSS: true, caseSensitive: true, preserveLineBreaks: true, collapseWhitespace: true, continueOnParseError: true }) : html
@@ -254,7 +257,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	if(server) server.close()
 
 	// Si c'est le tout premier démarrage, on va préparer le live reload
-	if(serverRestart == 0 && (globalLiveReloadEnabled || (fromCli && process.argv.slice(2)[0] == "dev"))){
+	if(!serverRestart && (globalLiveReloadEnabled || (fromCli && process.argv.slice(2)[0] == "dev"))){
 		const WebSocket = require("ws")
 		wss = new WebSocket.Server({ port: port + 1 })
 	}
@@ -425,7 +428,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 							if(minifiedFiles[route.file]) actionContent = minifiedFiles[route.file]
 							else {
 								actionContent = (await Terser.minify(actionContent))?.code || actionContent
-								minifiedFiles[route.file] = actionContent
+								if(!isDev) minifiedFiles[route.file] = actionContent
 							}
 						}
 					} else {
@@ -797,7 +800,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 				else {
 					if(!Terser) Terser = require("terser")
 					content = (await Terser.minify(content))?.code || content
-					minifiedFiles[route.file] = content
+					if(!isDev) minifiedFiles[route.file] = content
 				}
 			}
 		} catch (err) {}
