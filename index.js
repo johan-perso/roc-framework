@@ -692,9 +692,6 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 		})
 	})
 
-	// Si on veut ouvrir le navigateur
-	if(config.devOpenBrowser) require("open")(`http://127.0.0.1:${port}`)
-
 	// On ajoute les routes
 	staticServer.use(express.static(path.join(projectPath, "..", config.buildDir)))
 
