@@ -671,6 +671,9 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	// Si on a déjà un serveur, on le ferme
 	if(staticServer) staticServer.close()
 
+	const buildDir = path.join(projectPath, "..", config.buildDir)
+	const mime = require("mime")
+
 	// Importer le serveur
 	const express = require("express")
 	staticServer = express()
@@ -692,23 +695,50 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 		})
 	})
 
-	// On ajoute les routes
-	staticServer.use(express.static(path.join(projectPath, "..", config.buildDir)))
-
-	// On ajoute la page 404
-	staticServer.use((req, res) => {
-		if(fs.existsSync(path.join(projectPath, "..", config.buildDir, "404.html"))) return res.status(404).sendFile(path.join(projectPath, "..", config.buildDir, "404.html"))
-		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
-	})
-
 	// Log chaque requête
 	staticServer.use((req, res, next) => {
 		consola.log(`${chalk.green(req.method)} ${req.url}`)
 		next()
 	})
 
+	// On sert tout les fichiers du dossier de build
+	var buildFiles = walk(buildDir)
+	buildFiles.forEach(filePath => {
+		function addRoute(routePath){
+			staticServer.get(routePath.startsWith("/") ? routePath : `/${routePath}`, async (req, res) => {
+				if(filePath.endsWith(".html")){
+					var fileContent
+					try {
+						fileContent = fs.readFileSync(filePath)
+						fileContent = fileContent.toString()
+					} catch (err) {
+						consola.error(`Impossible de récupérer le fichier situé à "${filePath}"`)
+						consola.error(err)
+						return res.status(500).setHeader("Content-Type", "text/plain").send("Roc | Erreur interne du serveur, veuillez réessayer...")
+					}
+
+					res.setHeader("Content-Type", "text/html").send(fileContent)
+				} else {
+					var mimeType = mime.getType(filePath)
+					res.setHeader("Content-Type", mimeType == "application/octet-stream" ? "text/plain" : (mimeType || "text/plain")).sendFile(filePath)
+				}
+			})
+		}
+
+		addRoute(path.relative(buildDir, filePath)) // On ajoute la route
+		if(filePath.endsWith(".html")) addRoute(path.relative(buildDir, filePath).slice(0, -5)) // permettre d'accéder à la page sans le .html
+
+		if(path.basename(filePath) == "index.html") addRoute("/")
+	})
+
+	// On ajoute la page 404
+	staticServer.use((req, res) => {
+		if(fs.existsSync(path.join(buildDir, "404.html"))) return res.status(404).sendFile(path.join(buildDir, "404.html"))
+		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
+	})
+
 	// On vérifie que le dossier "build" existe et contient des fichiers
-	if(!fs.existsSync(path.join(projectPath, "..", config.buildDir))) return consola.warn(`Le dossier "${config.buildDir}" n'existe pas/est vide. Vous devez utiliser la commande "roc build" avant de démarrer le serveur statique.`)
+	if(!fs.existsSync(buildDir)) return consola.warn(`Le dossier "${config.buildDir}" n'existe pas/est vide. Vous devez utiliser la commande "roc build" avant de démarrer le serveur statique.`)
 }
 
 /**

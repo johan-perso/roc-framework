@@ -30,6 +30,7 @@
         "express": "^4.19.2",
         "html-minifier": "^4.0.0",
         "localtunnel": "^2.0.2",
+        "mime": "3.0.0",
         "open": "8.4.2",
         "postcss": "^8.4.24",
         "sqwish": "^0.2.2",
