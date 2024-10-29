@@ -1,6 +1,6 @@
 {
     "name": "roc-framework",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "description": "Un générateur simple et léger mais puissant pour aider au développement de sites statiques",
     "main": "index.js",
     "bin": {
