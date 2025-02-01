@@ -260,7 +260,7 @@ produira :
 
 | Librairie     | Version |
 | ------------- | ------- |
-| Tailwind CSS  | 4.0.3   |
+| Tailwind CSS  | 3.4.17  |
 | daisyUI       | 4.12.23 |
 
 
