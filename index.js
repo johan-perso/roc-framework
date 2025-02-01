@@ -83,7 +83,7 @@ function initVariables(configParam = null){ // configParam doit être présent s
 	}
 
 	// Si on utilise pas Tailwind CSS, on recommande de supprimer le fichier de config
-	if(!config.useTailwindCSS && fs.existsSync(path.join(projectPath, "..", "tailwind.config.js"))) consola.warn("Vous avez désactivé l'utilisation de Tailwind CSS, vous pouvez supprimer le fichier \"tailwind.config.js\"")
+	if(config && !config.useTailwindCSS && fs.existsSync(path.join(projectPath, "..", "tailwind.config.js"))) consola.warn("Vous avez désactivé l'utilisation de Tailwind CSS, vous pouvez supprimer le fichier \"tailwind.config.js\"")
 
 	// Si on a des erreurs, on les retourne
 	if(errorsReturned) return errorsReturned
@@ -266,7 +266,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	if(config.useTailwindCSS){
 		// On vérifie si la config de Tailwind CSS existe
 		if(!fs.existsSync(path.join(projectPath, "..", "tailwind.config.js"))){
-			fs.writeFileSync(path.join(projectPath, "..", "tailwind.config.js"), "/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n\tcontent: ['./**/*.{html,js}'],\n\tplugins: [require('daisyui')],\n\tdaisyui: {\n\t\tlogs: false,\n\t\tthemes: [\n\t\t\t\"dark\"\n\t\t],\n\t}\n}")
+			fs.writeFileSync(path.join(projectPath, "..", "tailwind.config.js"), "/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n\tcontent: ['./public/**/*.{html,js}', './index.js'],\n\tplugins: [require('daisyui')],\n\tdaisyui: {\n\t\tlogs: false,\n\t\tthemes: [\n\t\t\t\"dark\"\n\t\t],\n\t}\n}")
 			consola.success("Fichier de configuration Tailwind CSS créé")
 		}
 
