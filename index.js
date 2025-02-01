@@ -256,7 +256,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	// Si on a déjà un serveur, on le ferme
 	if(server) server.close()
 
-	// Si c'est le tout premier démarrage, on va préparer le live reload
+	// Si c'est le tout premier démarrage et qu'on est en mode dev, on va préparer le live reload
 	if(!serverRestart && (globalLiveReloadEnabled || (fromCli && process.argv.slice(2)[0] == "dev"))){
 		const WebSocket = require("ws")
 		wss = new WebSocket.Server({ port: port + 1 })
@@ -285,7 +285,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		server = null
 		server = app.listen(port, async () => {
 			// Afficher les boxes dans la console
-			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
+			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré (${isDev ? "dev" : "prod"})\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
 			fromCli && process.stdin.isTTY ? consola.box(`${chalk.bgBlueBright(" ROC ")} Raccourcis disponibles :\n\n ${chalk.dim("━")} ${chalk.bold("r")}         ${chalk.blueBright("Redémarre le serveur en relancant les analyses")}\n ${chalk.dim("━")} ${chalk.bold("q")}         ${chalk.blueBright("Ferme le serveur puis quitte le processus")}\n ${chalk.dim("━")} ${chalk.bold("t")}         ${chalk.blueBright("Ouvre un tunnel accessible hors du réseau")}\n ${chalk.dim("━")} ${chalk.bold("CTRL+L")}    ${chalk.blueBright("Vide le contenu de la console")}`) : `\n${chalk.yellow("⚠")} Les raccourcis clavier ne sont pas disponibles dans cet environnement.\n`
 
 			// Si on a déjà démarré le serveur, on va juste redémarrer
@@ -331,31 +331,33 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		if(config.devOpenBrowser && fromCli) require("open")(`http://127.0.0.1:${server.address().port}`)
 
 		// Quand on modifie un fichier
-		const chokidar = require("chokidar")
-		chokidar.watch([
-			path.join(projectPath),
-			path.join(projectPath, "..", "roc.config.js"),
-			path.join(projectPath, "..", "tailwind.config.js")
-		], { ignoreInitial: true, ignorePermissionErrors: true }).on("all", async (event, path) => {
-			// Log
-			if(fromCli && path.endsWith("roc.config.js")) consola.warn("Le fichier de configuration roc.config.js a été modifié, redémarrez l'ensemble du processus pour appliquer les changements")
+		if(isDev){
+			const chokidar = require("chokidar")
+			chokidar.watch([
+				path.join(projectPath),
+				path.join(projectPath, "..", "roc.config.js"),
+				path.join(projectPath, "..", "tailwind.config.js")
+			], { ignoreInitial: true, ignorePermissionErrors: true }).on("all", async (event, fileChangedPath) => {
+				// Log
+				if(fromCli && fileChangedPath.endsWith("roc.config.js")) consola.warn("Le fichier de configuration roc.config.js a été modifié, redémarrez l'ensemble du processus pour appliquer les changements")
 
-			// Si on utilise TailwindCSS et qu'on a modifié un fichier HTML/CSS/JS
-			if(config.useTailwindCSS && (path.endsWith(".html") || path.endsWith(".css") || path.endsWith(".js"))) await generateTailwindCSS()
+				// Si on utilise TailwindCSS et qu'on a modifié un fichier HTML/CSS/JS
+				if(config.useTailwindCSS && (fileChangedPath.endsWith(".html") || fileChangedPath.endsWith(".css") || fileChangedPath.endsWith(".js"))) await generateTailwindCSS()
 
-			// Live reload
-			if(event == "change" && wss?.clients) wss.clients.forEach(client => client.send("re"))
+				// Live reload
+				if(event == "change" && wss?.clients) wss.clients.forEach(client => client.send("re"))
 
-			// Si on a un changement du nombre de routes, ou une modification dans le routing, on redémarre le serveur
-			if(path.endsWith("_routing.json") || routesCount != getRoutes().length){
-				routesCount = routes.length
-				return startServer(port) // on redémarre le serveur (mais certaines étapes ne seront pas refaites)
-			}
-		})
+				// Si on a un changement du nombre de routes, ou une modification dans le routing, on redémarre le serveur
+				if(fileChangedPath.endsWith("_routing.json") || routesCount != getRoutes().length){
+					routesCount = routes.length
+					return startServer(port) // on redémarre le serveur (mais certaines étapes ne seront pas refaites)
+				}
+			})
+		}
 	}
 
 	// On récupère la liste des routes
-	if(serverRestart == 1) getRoutes()
+	if(serverRestart == 1) routesCount = getRoutes().length
 
 	// Si le fichier de routing existe
 	if(fs.existsSync(path.join(projectPath, "_routing.json"))){
@@ -683,7 +685,7 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	staticServer.use(compression())
 	await new Promise((resolve, reject) => {
 		staticServer.listen(port, async () => {
-			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur statique démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}`)
+			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur statique démarré (${isDev ? "dev" : "prod"})\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}`)
 			resolve()
 		})
 
