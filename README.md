@@ -256,6 +256,14 @@ produira :
 ```
 
 
+## Versions des libs intégrées
+
+| Librairie     | Version |
+| ------------- | ------- |
+| Tailwind CSS  | 4.0.3   |
+| daisyUI       | 4.12.23 |
+
+
 ## Déploiement
 
 ### Vercel
@@ -268,6 +276,7 @@ Vous pouvez déployer votre projet sur Vercel à l'aide du fichier `vercel.json`
 
 **Statique :** pour servir votre site, vous pouvez utiliser un simple hébergeur web et lui donner les fichiers présents dans le dossier `build` après la phase de build. Sur votre infrastructure, vous pouvez utiliser un serveur web tel que Nginx ou Apache pour servir les fichiers.  
 **Dynamique :** vous aurez besoin d'une machine en capacité d'exécuter votre fichier JavaScript (un VPS par exemple), ROC s'occupera du serveur et vous n'aurez pas besoin de Nginx ou d'alternatives similaires.
+
 
 
 ## Licence

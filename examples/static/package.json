@@ -8,7 +8,7 @@
         "build": "roc build"
     },
     "dependencies": {
-        "daisyui": "4.12.10",
+        "daisyui": "4.12.23",
         "roc-framework": "latest"
     }
 }
