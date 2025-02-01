@@ -172,10 +172,17 @@ async function generateTailwindCSS(){
 			tailwind({ config: path.join(projectPath, "..", "tailwind.config.js") }),
 		]).process(`@tailwind base;@tailwind components;@tailwind utilities;${extraCSS}`, { from: undefined })
 		tailwindCSS = result.css
-		return result.css
 	} catch (err) {
-		consola.warn("Erreur lors de la génération de Tailwind CSS", err)
+		consola.warn("Tailwind CSS n'a pas pu être généré", err)
 	}
+
+	try {
+		if(tailwindCSS && tailwindCSS?.length) minifiedTailwindCSS = sqwish.minify(tailwindCSS)
+	} catch (err) {
+		consola.warn("Tailwind CSS semble avoir été généré, mais n'a pas pu être minifié", err)
+	}
+
+	return tailwindCSS
 }
 
 // Générer le code HTML d'une page
@@ -217,7 +224,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 
 	// Si on utilise Tailwind CSS, on va minifier le CSS et l'insérer dans l'HTML
 	if(config.useTailwindCSS && !options.disableTailwind && tailwindCSS){
-		if(!minifiedTailwindCSS) minifiedTailwindCSS = sqwish.minify(tailwindCSS)
+		if(!minifiedTailwindCSS) minifiedTailwindCSS = sqwish.minify(tailwindCSS) // normalement il l'est déjà, puisque minifié pendant sa génération
 		if(domHead) domHead.append(`<style>${minifiedTailwindCSS}</style>`)
 		else if(domBody) domBody.append(`<style>${minifiedTailwindCSS}</style>`)
 	}
@@ -233,9 +240,6 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	} catch (err) {
 		consola.warn(`Erreur lors de l'évaluation du code dans le fichier ${routeFile}`, err)
 	}
-
-	// Si on est en mode dev, on va pas garder le TailwindCSS minifié en cache
-	if(fromCli && process.argv.slice(2)[0] == "dev") minifiedTailwindCSS = null
 
 	// On retourne le code HTML
 	try {
