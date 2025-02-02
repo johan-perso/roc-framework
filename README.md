@@ -1,4 +1,4 @@
-# ROC *(solid like a rock)*
+# ROC
 
 ROC est un générateur de site imaginé pour être le plus facile à utiliser pour ceux qui ont l'habitude de développer des sites web avec du HTML et du JavaScript.
 
