@@ -12,6 +12,7 @@ const compression = require("compression")
 const cheerio = require("cheerio")
 const rocPkg = require("./package.json")
 require("dotenv").config()
+var QRCode
 
 var Terser
 var minifiedFiles = {}
@@ -55,6 +56,18 @@ if(fromCli){
 // Fonction pour échapper du HTML // pouvant être utile pour les sites qui ont du code traité par le serveur
 function escapeHtml(unsafe){ // eslint-disable-line
 	return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;")
+}
+
+// Fonction pour afficher un QR code dans le terminal
+function showQRCode(content){
+	if(!QRCode) QRCode = require("qrcode")
+
+	QRCode.toString(content, { type: "terminal" }, (err, url) => {
+		if(err) return consola.box(err?.stack || err?.message || err)
+		else consola.box(url)
+	})
+
+	return true
 }
 
 // Initialisation de certaines variables
@@ -290,7 +303,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		server = app.listen(port, async () => {
 			// Afficher les boxes dans la console
 			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré (${isDev ? "dev" : "prod"})\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
-			fromCli && process.stdin.isTTY ? consola.box(`${chalk.bgBlueBright(" ROC ")} Raccourcis disponibles :\n\n ${chalk.dim("━")} ${chalk.bold("r")}         ${chalk.blueBright("Redémarre le serveur en relancant les analyses")}\n ${chalk.dim("━")} ${chalk.bold("q")}         ${chalk.blueBright("Ferme le serveur puis quitte le processus")}\n ${chalk.dim("━")} ${chalk.bold("t")}         ${chalk.blueBright("Ouvre un tunnel accessible hors du réseau")}\n ${chalk.dim("━")} ${chalk.bold("CTRL+L")}    ${chalk.blueBright("Vide le contenu de la console")}`) : `\n${chalk.yellow("⚠")} Les raccourcis clavier ne sont pas disponibles dans cet environnement.\n`
+			fromCli && process.stdin.isTTY ? consola.box(`${chalk.bgBlueBright(" ROC ")} Raccourcis disponibles :\n\n ${chalk.dim("━")} ${chalk.bold("r")}         ${chalk.blueBright("Redémarre le serveur en relancant les analyses")}\n ${chalk.dim("━")} ${chalk.bold("q")}         ${chalk.blueBright("Ferme le serveur puis quitte le processus")}\n ${chalk.dim("━")} ${chalk.bold("c")}         ${chalk.blueBright("Affiche un QR Code pour accéder au serveur")}\n ${chalk.dim("━")} ${chalk.bold("t")}         ${chalk.blueBright("Ouvre un tunnel accessible hors du réseau")}\n ${chalk.dim("━")} ${chalk.bold("CTRL+L")}    ${chalk.blueBright("Vide le contenu de la console")}`) : `\n${chalk.yellow("⚠")} Les raccourcis clavier ne sont pas disponibles dans cet environnement.\n`
 
 			// Si on a déjà démarré le serveur, on va juste redémarrer
 			serverRestart++
@@ -320,14 +333,22 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 				if(key == "\r") return consola.log() // sauter une ligne (ENTER)
 				else if(key == "\u000c") return console.clear() // clear
 				else if(key == "q" || key == "\u0003") process.exit() // quitter
+				else if(key == "c") showQRCode(global.tunnelLink || `http://${await getLocalIP()}:${port}`) // afficher un QR code
 				else if(key == "t" && !global.tunnelLink){ // ouvrir un tunnel
 					consola.info("Ouverture du tunnel...")
 					var localtunnel = require("localtunnel")
 					var tunnel = await localtunnel({ port: port })
 					global.tunnelLink = tunnel.url
 					consola.success(`Tunnel ouvert : ${global.tunnelLink || tunnel?.url}`)
+
+					if(global.fetch){
+						var externIP = await fetch("https://api.ipify.org?format=json").then(res => res.json())
+						if(!externIP?.ip) return
+						global.externIP = externIP.ip
+						consola.info(`Adresse IP externe : ${externIP.ip}`)
+					}
 				}
-				else if(key == "t" && global.tunnelLink) consola.success(`Tunnel déjà ouvert : ${global.tunnelLink}`) // afficher un tunnel déjà ouvert
+				else if(key == "t" && global.tunnelLink) consola.success(`Tunnel déjà ouvert : ${global.tunnelLink} (IP externe : ${global.externIP})`) // afficher un tunnel déjà ouvert
 			})
 		}
 
