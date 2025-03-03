@@ -79,7 +79,7 @@ La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fich
 * `buildDir` | `string` : chemin vers le dossier de build
 * `minifyHtml` | `boolean` : détermine si le code HTML doit être minifié ou non (Tailwind CSS est toujours minifié)
 * `devPort` | `number` : port du serveur de développement (la variable d'environnement `PORT` restera prioritaire)
-* `devOpenBrowser` | `boolean` : détermine si le navigateur doit s'ouvrir automatiquement lors du lancement du serveur de développement
+* `devOpenBrowser` | `boolean` : détermine si le navigateur doit s'ouvrir automatiquement lors du lancement du serveur de développement ; la variable d'environnement `ROC_DEFAULT_BROWSER` permet de changer le navigateur par défaut
 
 
 ---
@@ -199,7 +199,7 @@ Les options disponibles sont les suivantes :
 * `preventMinify` | `boolean` : désactive la minification pour cette route, s'il s'agit d'une page HTML.
 * `forceMinify` | `boolean` : force la minification pour cette route, s'il s'agit d'une page HTML.
 
-> Les routes sont prioritaires sur les fichiers, si une route est définie pour une page, le fichier ne sera pas utilisé.  
+> Les routes sont prioritaires sur les fichiers, si une route est définie pour une page, le fichier ne sera pas utilisé.
 > Une route doit inclure l'option `showFile` ou `redirect` pour fonctionner, sauf sur serveur dynamique. Si elle ne contient aucun des deux mais qu'un fichier existe, celui-ci sera utilisé.
 
 Exemple :
@@ -274,7 +274,7 @@ Vous pouvez déployer votre projet sur Vercel à l'aide du fichier `vercel.json`
 
 ### Ailleurs
 
-**Statique :** pour servir votre site, vous pouvez utiliser un simple hébergeur web et lui donner les fichiers présents dans le dossier `build` après la phase de build. Sur votre infrastructure, vous pouvez utiliser un serveur web tel que Nginx ou Apache pour servir les fichiers.  
+**Statique :** pour servir votre site, vous pouvez utiliser un simple hébergeur web et lui donner les fichiers présents dans le dossier `build` après la phase de build. Sur votre infrastructure, vous pouvez utiliser un serveur web tel que Nginx ou Apache pour servir les fichiers.
 **Dynamique :** vous aurez besoin d'une machine en capacité d'exécuter votre fichier JavaScript (un VPS par exemple), ROC s'occupera du serveur et vous n'aurez pas besoin de Nginx ou d'alternatives similaires.
 
 

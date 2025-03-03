@@ -353,7 +353,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		}
 
 		// Si on veut ouvrir le navigateur
-		if(config.devOpenBrowser && fromCli) require("open")(`http://127.0.0.1:${server.address().port}`)
+		if(config.devOpenBrowser && fromCli) require("open")(`http://127.0.0.1:${server.address().port}`, { app: { name: process.env.ROC_DEFAULT_BROWSER || undefined } })
 
 		// Quand on modifie un fichier
 		if(isDev){
