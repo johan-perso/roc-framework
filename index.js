@@ -273,12 +273,6 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	// Si on a déjà un serveur, on le ferme
 	if(server) server.close()
 
-	// Si c'est le tout premier démarrage et qu'on est en mode dev, on va préparer le live reload
-	if(!serverRestart && (globalLiveReloadEnabled || (fromCli && process.argv.slice(2)[0] == "dev"))){
-		const WebSocket = require("ws")
-		wss = new WebSocket.Server({ port: port + 1 })
-	}
-
 	// Si on utilise Tailwind CSS
 	if(config.useTailwindCSS){
 		// On vérifie si la config de Tailwind CSS existe
@@ -301,6 +295,12 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	await new Promise((resolve, reject) => {
 		server = null
 		server = app.listen(port, async () => {
+			// Si c'est le tout premier démarrage et qu'on est en mode dev, on va préparer le live reload
+			if(!serverRestart && (globalLiveReloadEnabled || (fromCli && process.argv.slice(2)[0] == "dev"))){
+				const WebSocket = require("ws")
+				wss = new WebSocket.Server({ port: port + 1 })
+			}
+
 			// Afficher les boxes dans la console
 			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré (${isDev ? "dev" : "prod"})\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
 			fromCli && process.stdin.isTTY ? consola.box(`${chalk.bgBlueBright(" ROC ")} Raccourcis disponibles :\n\n ${chalk.dim("━")} ${chalk.bold("r")}         ${chalk.blueBright("Redémarre le serveur en relancant les analyses")}\n ${chalk.dim("━")} ${chalk.bold("q")}         ${chalk.blueBright("Ferme le serveur puis quitte le processus")}\n ${chalk.dim("━")} ${chalk.bold("c")}         ${chalk.blueBright("Affiche un QR Code pour accéder au serveur")}\n ${chalk.dim("━")} ${chalk.bold("t")}         ${chalk.blueBright("Ouvre un tunnel accessible hors du réseau")}\n ${chalk.dim("━")} ${chalk.bold("CTRL+L")}    ${chalk.blueBright("Vide le contenu de la console")}`) : `\n${chalk.yellow("⚠")} Les raccourcis clavier ne sont pas disponibles dans cet environnement.\n`
