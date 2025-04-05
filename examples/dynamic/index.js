@@ -7,6 +7,7 @@ var server = new roc.server({
 
 	interceptRequests: true, // vous ne pourrez pas répondre manuellement aux requêtes si désactivé. Si activé, vous *devrez* répondre manuellement aux requêtes
 
+	exposeComponents: false, // autorise l'accès aux fichiers dans le dossier qui contient les composants customs
 	liveReloadEnabled: true, // sera désactivé si process.env.NODE_ENV = 'production'
 	useTailwindCSS: true,
 	minifyHtml: true, // les pages HTML et les fichiers JavaScript seront minifiés, Tailwind CSS sera minifié et inclut dans la page, les autres fichiers ne seront pas impactés

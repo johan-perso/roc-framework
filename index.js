@@ -16,6 +16,7 @@ var QRCode
 
 var Terser
 var minifiedFiles = {}
+var components = []
 
 var projectPkg = null
 var projectPath = path.join(process.cwd(), "public")
@@ -56,6 +57,38 @@ if(fromCli){
 // Fonction pour échapper du HTML // pouvant être utile pour les sites qui ont du code traité par le serveur
 function escapeHtml(unsafe){ // eslint-disable-line
 	return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;")
+}
+
+// Obtenir le code HTML d'un composant
+function getHtmlComponent(componentPath){
+	componentPath = componentPath.toLowerCase().trim()
+
+	var componentsList = walk(path.join(projectPath, "components"))
+	var component
+	componentsList.forEach(inList => {
+		var simplifiedInList = inList.toLowerCase().trim() // pour supporter les systèmes sensibles à la casse
+		if(simplifiedInList.endsWith(".html") && simplifiedInList.endsWith(`${componentPath}.html`) && path.basename(simplifiedInList) == path.basename(`${componentPath}.html`)){
+			component = inList
+		}
+	})
+
+	if(!component) return null
+
+	var componentContent = fs.readFileSync(component, "utf8")
+	return componentContent
+}
+
+// Fonction pour exécuter du code côté serveur depuis une page
+function execEmbeddedCode(html, routeFile, context){
+	try {
+		html = html.replace(/{{([\s\S]*?)}}/g, (match, p1) => {
+			return function(){ return eval(p1) }.call(context)
+		})
+	} catch (err) {
+		consola.warn(`Erreur lors de l'évaluation du code dans le fichier ${routeFile}`, err)
+	}
+
+	return html
 }
 
 // Fonction pour afficher un QR code dans le terminal
@@ -146,14 +179,21 @@ function walk(dir){
 var routes = []
 function getRoutes(){
 	routes = []
+	components = []
 	walk(path.join(projectPath)).forEach(file => {
-		// Nom du fichier
-		var fileName = path.basename(file)
+		// Ajouter les composants, et exposer uniquement en fonction de config.exposeComponents
+		if(path.relative(projectPath, file).startsWith("components/")){
+			var loweredCaseName = path.relative(projectPath, file).toLowerCase().trim()
+			if(loweredCaseName.startsWith("components/")) loweredCaseName = loweredCaseName.replace("components/", "")
+			if(loweredCaseName.endsWith(".html")) loweredCaseName = loweredCaseName.slice(0, -5)
+			components.push(loweredCaseName)
+			if(!config.exposeComponents) return
+		}
 
 		// Ne pas ajouter certaines routes
 		if(path.relative(path.join(projectPath), file) == "_routing.json") return // fichier de routing
 		if(path.relative(path.join(projectPath), file) == "404.html") return // page d'erreur 404
-		if(fileName == ".DS_Store") return // fichiers .DS_Store
+		if(path.basename(file) == ".DS_Store") return // fichiers .DS_Store
 
 		// Ajouter la route
 		if(file.endsWith(".html")) routes.push({ path: `/${path.relative(path.join(projectPath), file) == "index.html" ? "" : path.relative(path.join(projectPath), file).replace(/\\/g, "/")}`, file: file })
@@ -216,6 +256,39 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	var dom = cheerio.load(html, { xml: { xmlMode: false, decodeEntities: false } })
 	var domHead = dom("head")
 	var domBody = dom("body")
+	const allElementsInDom = dom("*")
+
+	// Détecter et gérer les composants custom
+	for(var component of components){
+		var usesInDom = Array.from(allElementsInDom.filter((i, el) => el.name.toLowerCase() == component))
+		if(!usesInDom.length) continue // on utilise pas ce composant dans cette page
+
+		usesInDom.forEach(el => {
+			var componentName = el?.name || component
+			var componentAttribs = el?.attribs
+			var componentHtml = getHtmlComponent(componentName)
+
+			if(!componentName || !componentHtml) return
+
+			// Utiliser les attributs et autoriser l'exécution de code
+			componentHtml = componentHtml.replace(/\{\{\s*\$\s*([\s\S]*?)\s*\}\}/g, (match, p1) => {
+				return componentAttribs[p1.toLowerCase().trim()] || `$${p1}`
+			})
+			componentHtml = execEmbeddedCode(componentHtml, `${component}.html`, {
+				routeFile,
+				isDev,
+				escapeHtml,
+				getHtmlComponent,
+				options,
+				componentName,
+				componentAttribs
+			})
+
+			// Ajouter le composant dans le DOM
+			if(componentHtml) dom(el).replaceWith(componentHtml)
+			else consola.warn(`Le composant "${componentName}" n'a pas pu être trouvé pour la route ${routeFile}`)
+		})
+	}
 
 	// Ajouter un header "generator" dans le head
 	if(domHead) var domHeadGenerator = domHead.find("meta[name='generator']")
@@ -245,14 +318,14 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	// Transformer le DOM en HTML
 	html = dom.html({ xml: { xmlMode: false, decodeEntities: false } })
 
-	// Pouvoir exécuter du code depuis le fichier HTML, côté serveur
-	try {
-		html = html.replace(/{{([\s\S]*?)}}/g, (match, p1) => {
-			return eval(p1.trim())
-		})
-	} catch (err) {
-		consola.warn(`Erreur lors de l'évaluation du code dans le fichier ${routeFile}`, err)
-	}
+	// Exécuter du code côté serveur depuis le fichier HTML
+	html = execEmbeddedCode(html, routeFile, {
+		routeFile,
+		isDev,
+		escapeHtml,
+		getHtmlComponent,
+		options,
+	})
 
 	// On retourne le code HTML
 	try {
@@ -576,7 +649,17 @@ async function buildRoutes(){
 	// On récupère la liste des routes
 	// Note: cette fonction est volontairement différente de celle utilisée pour le serveur de développement : la page 404 est incluse par exemple
 	var routes = []
+	components = []
 	walk(path.join(projectPath)).forEach(file => {
+		// Ajouter les composants, et exposer uniquement en fonction de config.exposeComponents
+		if(path.relative(projectPath, file).startsWith("components/")){
+			var loweredCaseName = path.relative(projectPath, file).toLowerCase().trim()
+			if(loweredCaseName.startsWith("components/")) loweredCaseName = loweredCaseName.replace("components/", "")
+			if(loweredCaseName.endsWith(".html")) loweredCaseName = loweredCaseName.slice(0, -5)
+			components.push(loweredCaseName)
+			if(!config.exposeComponents) return
+		}
+
 		// Ne pas ajouter certains fichiers
 		if(path.relative(projectPath, file) == "_routing.json") return // fichier de routing
 		if(path.basename(file) == ".DS_Store") return // fichiers .DS_Store

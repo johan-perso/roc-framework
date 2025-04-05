@@ -125,6 +125,7 @@ var server = new roc.server({
 
 	interceptRequests: true, // vous ne pourrez pas répondre manuellement aux requêtes si désactivé. Si activé, vous *devrez* répondre manuellement aux requêtes
 
+	exposeComponents: false, // autorise l'accès aux fichiers dans le dossier qui contient les composants customs
 	liveReloadEnabled: true, // sera désactivé si process.env.NODE_ENV = 'production'
 	useTailwindCSS: true,
 	minifyHtml: true, // les pages HTML et les fichiers JavaScript seront minifiés, Tailwind CSS sera minifié et inclut dans la page, les autres fichiers ne seront pas impactés
@@ -243,17 +244,61 @@ produira :
 <p>Compiled at 07/06/2023, 11:38:45</p>
 ```
 
-Le code est exécuté avec Node.js, il est donc possible d'utiliser des modules Node.js.
+Le code est exécuté dans le même processus que roc, il est donc possible d'utiliser des librairies, des fonctions natives, des éléments systèmes, des variables globales, etc. Certaines propriétés ont été rajoutées pour améliorer l'utilisation de cette fonctionnalité : `routeFile`, `isDev`, `escapeHtml(unsafe: string)` et `getHtmlComponent(componentPath: string)`, `options`. Lors de l'exécution de code depuis un composant, les propriétés `componentName` et `componentAttribs` sont également disponibles.
 
 Exemple :
 
 ```html
-<p>Random number: {{ Math.random() }}</p>
+<p>{{ escapeHtml('Hello <World>') }}</p>
 ```
 produira :
 ```html
-<p>Random number: 0.2013490904951581</p>
+<p>Hello &lt;World&gt;</p>
 ```
+
+
+## Composants
+
+Roc intègre un système de composants minimes pour éviter les répétitions dans vos pages WEBs. Chaque composant doit être gardé dans un fichier séparé, situé dans le dossier `public/components` avec l'extension `.html`. Le nom du fichier utilisé pour votre composant sera celui à utiliser dans votre page.
+
+### Exemple
+
+```bash
+$ tree
+.
+├── _routing.json
+├── components
+│   ├── BlockFeature.html
+│   └── SectionFeature.html
+├── index.html
+```
+
+```bash
+$ bat components/BlockFeature.html
+───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+       │ File: components/BlockFeature.html
+───────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1   │ <div class="bg-[#0F0F0F] rounded-md border border-[#27272A] max-sm:space-y-4 w-full h-full py-8 px-8 gap-8 shadow-md">
+   2   │     <h3 class="font-[Rethink] text-white text-[26px] min-[2000px]:text-3xl font-medium">{{ $title }}</h3>
+   3   │     <p class="mt-1 min-[2000px]:mt-3 font-[Geist] text-[#A1A1AA] text-lg min-[2000px]:text-[22px] leading-relaxed">
+   4   │         {{ $content }}
+   5   │     </p>
+   6   │ </div>
+```
+
+```bash
+$ bat index.html
+───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+       │ File: index.html
+───────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ 164   │ <BlockFeature title="Exemple" content="Hello world from a component, rendered with zero client-side JavaScript."></BlockFeature>
+ 165   │ <!-- ✅ <BlockFeature></BlockFeature> -->
+ 165   │ <!-- ❌ <BlockFeature /> -->
+```
+
+### Attributs et exécution de code
+
+Comme dans l'exemple, ajoutez simplement un attribut lorsque vous incluez le composant dans votre page WEB, pour l'utiliser avec la syntaxe `{{ $nom_de_l_attribut }}` dans celui-ci. Vous pouvez aussi les utiliser via l'exécution de code `{{ componentAttribs.nom_de_l_attribut }}` pour les afficher selon une certaine logique.
 
 
 ## Versions des libs intégrées

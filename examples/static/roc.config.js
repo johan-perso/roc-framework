@@ -3,6 +3,7 @@ module.exports = {
 	useTailwindCSS: true,
 
 	// Options de build
+	exposeComponents: false, // autorise l'accès aux fichiers dans le dossier public/composants
 	buildDir: "build", // chemin vers le dossier de build
 	minifyHtml: true, // le code HTML sera minifié si activé, Tailwind CSS et le JavaScript sont toujours minifiés
 
