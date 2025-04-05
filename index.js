@@ -37,12 +37,13 @@ var isDev = (fromCli && process.argv.slice(2)[0] == "dev") || (!fromCli && proce
 
 // (CLI) Exécuter certaines fonctions selon les arguments
 if(fromCli){
+	if(process.argv.slice(2).length == 0) return consola.error("Aucune commande spécifiée. Liste des commandes disponibles : version, dev, build, start")
+	else if(process.argv.slice(2)[0] == "version") return console.log(rocPkg?.version || "Inconnu") // afficher la version
+
 	var varResponse = initVariables()
 	if(varResponse != true) throw new Error(varResponse)
 
-	if(process.argv.slice(2).length == 0) consola.error("Aucune commande spécifiée. Liste des commandes disponibles : version, dev, build, start")
-	else if(process.argv.slice(2)[0] == "version") console.log(rocPkg?.version || "Inconnu") // afficher la version
-	else if(process.argv.slice(2)[0] == "dev") startServer() // serveur de développement
+	if(process.argv.slice(2)[0] == "dev") startServer() // serveur de développement
 	else if(process.argv.slice(2)[0] == "build") buildRoutes() // build les fichiers
 	else if(process.argv.slice(2)[0] == "start"){
 		if(process.argv.slice(2).includes("--no-build")){ // démarrer le serveur statique sans build à cause de l'argument --no-build
