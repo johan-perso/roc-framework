@@ -82,7 +82,7 @@ function getHtmlComponent(componentPath){
 // Fonction pour exécuter du code côté serveur depuis une page
 function execEmbeddedCode(html, routeFile, context){
 	try {
-		html = html.replace(/{{([\s\S]*?)}}/g, (match, p1) => {
+		html = html.replace(/\{\{\s*((?:(?!\$).)*?)\s*\}\}/g, (match, p1) => {
 			return function(){ return eval(p1) }.call(context)
 		})
 	} catch (err) {
@@ -253,8 +253,17 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	// Forcer la minification si on est sur serv dynamique et que l'option est activé dans la config
 	if(!fromCli && config.minifyHtml) options.forceMinify = true
 
+	// Exécuter du code côté serveur depuis le fichier HTML
+	html = execEmbeddedCode(html, routeFile, {
+		routeFile,
+		isDev,
+		escapeHtml,
+		getHtmlComponent,
+		options,
+	})
+
 	// Parser le DOM
-	var dom = cheerio.load(html, { xml: { xmlMode: false, decodeEntities: false } })
+	var dom = cheerio.load(html, { xml: { xmlMode: false, decodeEntities: false, lowerCaseAttributeNames: true } })
 	var domHead = dom("head")
 	var domBody = dom("body")
 	const allElementsInDom = dom("*")
@@ -271,10 +280,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 
 			if(!componentName || !componentHtml) return
 
-			// Utiliser les attributs et autoriser l'exécution de code
-			componentHtml = componentHtml.replace(/\{\{\s*\$\s*([\s\S]*?)\s*\}\}/g, (match, p1) => {
-				return componentAttribs[p1.toLowerCase().trim()] || `$${p1}`
-			})
+			// Autoriser l'exécution de code et l'utilisation d'attributs
 			componentHtml = execEmbeddedCode(componentHtml, `${component}.html`, {
 				routeFile,
 				isDev,
@@ -283,6 +289,9 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 				options,
 				componentName,
 				componentAttribs
+			})
+			componentHtml = componentHtml.replace(/\{\{\s*\$\s*([\s\S]*?)\s*\}\}/g, (match, p1) => {
+				return componentAttribs[p1.toLowerCase().trim()] || `$${p1}`
 			})
 
 			// Ajouter le composant dans le DOM
@@ -317,16 +326,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	}
 
 	// Transformer le DOM en HTML
-	html = dom.html({ xml: { xmlMode: false, decodeEntities: false } })
-
-	// Exécuter du code côté serveur depuis le fichier HTML
-	html = execEmbeddedCode(html, routeFile, {
-		routeFile,
-		isDev,
-		escapeHtml,
-		getHtmlComponent,
-		options,
-	})
+	html = dom.html({ xml: { xmlMode: false, decodeEntities: false, lowerCaseAttributeNames: true } })
 
 	// On retourne le code HTML
 	try {
