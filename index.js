@@ -479,7 +479,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
 				routes.push({ path: route, method: file.method, file: path.join(projectPath, "..", file.options.showFile), options: file.options }) // ajouter la nouvelle
 			}
-			else if(!file.options && file.method) routes.filter(r => r.path == route.path)[0].method = file.method // modifier l'ancienne
+			else if(!file.options && file.method && routes.find(r => r.path == route.path)) routes.filter(r => r.path == route.path)[0].method = file.method // modifier l'ancienne
 			else if(file.options){
 				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
 				routes.push({ path: route, method: file.method || "GET", options: file.options }) // ajouter la nouvelle
