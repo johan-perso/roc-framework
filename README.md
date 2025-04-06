@@ -76,6 +76,8 @@ npm start
 La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fichier contient un objet avec les propriétés suivantes :
 
 * `useTailwindCSS` | `boolean` : détermine si Tailwind CSS doit être utilisé ou non
+* `exposeComponents` | `boolean` : autorise l'accès aux fichiers dans le dossier `public/components`
+* `serversideCodeExecution` | `boolean` : autorise l'exécution de code côté serveur dans les pages via la syntaxe `{{ ... }}`
 * `buildDir` | `string` : chemin vers le dossier de build
 * `minifyHtml` | `boolean` : détermine si le code HTML doit être minifié ou non (Tailwind CSS est toujours minifié)
 * `devPort` | `number` : port du serveur de développement (la variable d'environnement `PORT` restera prioritaire)
@@ -126,6 +128,7 @@ var server = new roc.server({
 	interceptRequests: true, // vous ne pourrez pas répondre manuellement aux requêtes si désactivé. Si activé, vous *devrez* répondre manuellement aux requêtes
 
 	exposeComponents: false, // autorise l'accès aux fichiers dans le dossier qui contient les composants customs
+	serversideCodeExecution: true, // autorise l'exécution de code côté serveur dans les pages via la syntaxe `{{ ... }}`
 	liveReloadEnabled: true, // sera désactivé si process.env.NODE_ENV = 'production'
 	useTailwindCSS: true,
 	minifyHtml: true, // les pages HTML et les fichiers JavaScript seront minifiés, Tailwind CSS sera minifié et inclut dans la page, les autres fichiers ne seront pas impactés
@@ -232,7 +235,7 @@ Exemple :
 
 ## Exécution de code côté serveur pendant le build
 
-Il est possible depuis une page HTML d'exécuter du code JavaScript côté serveur lors du build. Pour cela, vous n'avez qu'à inclure du code entre doubles accolades (`{{ ... }}`) dans votre page HTML.
+Il est possible depuis une page HTML d'exécuter du code JavaScript côté serveur lors du build. Pour cela, vous n'avez qu'à inclure du code entre deux accolades (`{{ ... }}`) dans votre page HTML.
 
 Exemple :
 
@@ -298,7 +301,7 @@ $ bat index.html
 
 ### Attributs et exécution de code
 
-Comme dans l'exemple, ajoutez simplement un attribut lorsque vous incluez le composant dans votre page WEB, pour l'utiliser avec la syntaxe `{{ $nom_de_l_attribut }}` dans celui-ci. Vous pouvez aussi les utiliser via l'exécution de code `{{ componentAttribs.nom_de_l_attribut }}` pour les afficher selon une certaine logique.
+Comme dans l'exemple, ajoutez simplement un attribut lorsque vous incluez le composant dans votre page WEB, pour l'utiliser avec la syntaxe `{{ $nom_de_l_attribut }}` dans celui-ci. Vous pouvez aussi les utiliser via l'exécution de code `{{ this.componentAttribs.nom_de_l_attribut }}` pour les afficher selon une certaine logique.
 
 
 ## Versions des libs intégrées

@@ -81,6 +81,11 @@ function getHtmlComponent(componentPath){
 
 // Fonction pour exécuter du code côté serveur depuis une page
 function execEmbeddedCode(html, routeFile, context){
+	if(!config.serversideCodeExecution){
+		consola.warn(`L'exécution de code côté serveur pour le fichier ${routeFile} n'a pas fonctionné puisque cette fonctionnalité est désactivé dans la configuration.`)
+		return html
+	}
+
 	try {
 		html = html.replace(/\{\{\s*((?:(?!\$).)*?)\s*\}\}/g, (match, p1) => {
 			return function(){ return eval(p1) }.call(context)
@@ -860,13 +865,15 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
  * @param {Number} options.port Port utilisé par le serveur, `process.env.PORT` restera prioritaire
  * @param {Boolean} options.logger Affiche des logs concernant le serveur dans le terminal
  * @param {Boolean} options.interceptRequests Les requêtes vers le serveur devront être gérés par votre logique
+ * @param {Boolean} options.exposeComponents Autorise l'accès aux fichiers dans le dossier `public/components`
+ * @param {Boolean} options.serversideCodeExecution Autorise l'exécution de code côté serveur dans les pages via la syntaxe `{{ ... }}`
  * @param {Boolean} options.liveReload Recharge automatiquement la page lorsqu'un fichier est modifié
  * @param {Boolean} options.useTailwindCSS Injecte Tailwind CSS dans les pages HTML générées
  * @param {Boolean} options.minifyHtml Les fichiers HTML générés seront minifiés avant l'envoi
  * @param {String} options.path Chemin contenant les fichiers de votre projet
  * @returns {RocServer} Serveur Roc
 */
-function RocServer(options = { port: 3000, logger: true, interceptRequests: false, liveReload: false, useTailwindCSS: false, minifyHtml: true }){
+function RocServer(options = { port: 3000, logger: true, interceptRequests: false, exposeComponents: false, serversideCodeExecution: true, liveReload: false, useTailwindCSS: false, minifyHtml: true }){
 	// Vérifier qu'un chemin valide est fourni
 	if(!options.path) throw new Error("Vous devez fournir un chemin valide vers les fichiers de votre projet")
 	try {
@@ -885,7 +892,15 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	}
 
 	// Initialiser les variables
-	var serverOptions = { interceptRequests: options.interceptRequests, useTailwindCSS: options.useTailwindCSS, minifyHtml: options.minifyHtml, devPort: options.port, liveReloadEnabled: options.liveReload }
+	var serverOptions = {
+		interceptRequests: options.interceptRequests,
+		exposeComponents: options.exposeComponents,
+		serversideCodeExecution: options.serversideCodeExecution,
+		useTailwindCSS: options.useTailwindCSS,
+		minifyHtml: options.minifyHtml,
+		devPort: options.port,
+		liveReloadEnabled: options.liveReload
+	}
 	var varResponse = initVariables(serverOptions)
 	if(varResponse != true) throw new Error(varResponse)
 	this.readonlyOptions = serverOptions
