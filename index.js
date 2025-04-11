@@ -515,7 +515,15 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		if(route.method && !require("http").METHODS.includes(route.method.toUpperCase())) return consola.warn(`La méthode ${route.method} n'est pas valide pour la route ${route.path}`)
 
 		// Fonction pour ajouter la route
+		var addedRoutes = []
 		function addRoute(method, routePath){
+			// Si c'est un fichier index.html dans un dossier, on utilise /
+			if(routePath.endsWith("/index")) routePath = routePath.slice(0, -5)
+			if(routePath.endsWith("/index.html")) routePath = routePath.slice(0, -10)
+
+			if(addedRoutes.find(r => r.method == method && r.routePath == routePath)) return console.log("on a déjà")
+			addedRoutes.push({ method, routePath })
+
 			app[method](routePath, async (req, res) => {
 				var actionType = ""
 				var actionContent = ""
@@ -856,10 +864,22 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 			})
 		}
 
-		addRoute(path.relative(buildDir, filePath)) // On ajoute la route
-		if(filePath.endsWith(".html")) addRoute(path.relative(buildDir, filePath).slice(0, -5)) // permettre d'accéder à la page sans le .html
+		// Éviter de servir certains fichiers
+		if(filePath.endsWith(".nojekyll")) return
 
-		if(path.basename(filePath) == "index.html") addRoute("/")
+		// Fichier index.html à la racine du dossier publique
+		if(path.relative(buildDir, filePath) == "index.html") addRoute("/")
+
+		// Fichier index.html dans un dossier
+		else if(path.relative(buildDir, filePath).includes("/") && path.relative(buildDir, filePath).split("/").slice(-1)[0] == "index.html"){
+			addRoute(path.relative(buildDir, filePath).split("/").slice(0, -1).join("/"))
+		}
+
+		// Autres routes
+		else {
+			addRoute(path.relative(buildDir, filePath))
+			if(filePath.endsWith(".html")) addRoute(path.relative(buildDir, filePath).slice(0, -5)) // permettre d'accéder à la page sans le .html
+		}
 	})
 
 	// On ajoute la page 404

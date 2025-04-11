@@ -80,7 +80,7 @@ La configuration de ROC se fait en modifiant le fichier `roc.config.js`. Ce fich
 * `serversideCodeExecution` | `boolean` : autorise l'exécution de code côté serveur dans les pages via la syntaxe `{{ ... }}`
 * `buildDir` | `string` : chemin vers le dossier de build
 * `minifyHtml` | `boolean` : détermine si le code HTML doit être minifié ou non (Tailwind CSS est toujours minifié)
-* `devPort` | `number` : port du serveur de développement (la variable d'environnement `PORT` restera prioritaire)
+* `devPort` | `number` : port du serveur (utilisé lors du démarrage avec `dev` ou `start`, la variable d'environnement `PORT` restera prioritaire)
 * `devOpenBrowser` | `boolean` : détermine si le navigateur doit s'ouvrir automatiquement lors du lancement du serveur de développement ; la variable d'environnement `ROC_DEFAULT_BROWSER` permet de changer le navigateur par défaut
 
 
@@ -205,6 +205,7 @@ Les options disponibles sont les suivantes :
 
 > Les routes sont prioritaires sur les fichiers, si une route est définie pour une page, le fichier ne sera pas utilisé.
 > Une route doit inclure l'option `showFile` ou `redirect` pour fonctionner, sauf sur serveur dynamique. Si elle ne contient aucun des deux mais qu'un fichier existe, celui-ci sera utilisé.
+> Si une propriété avec le nom d'une route existe dans le fichier, mais ne contient pas d'options, celle-ci sera ignorée et ne sera pas servie.
 
 Exemple :
 
