@@ -245,7 +245,7 @@ async function generateTailwindCSS(){
 }
 
 // Générer le code HTML d'une page
-function generateHTML(routeFile, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false }){
+function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false }){
 	// Lire le fichier HTML
 	var html
 	try {
@@ -261,6 +261,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 	// Exécuter du code côté serveur depuis le fichier HTML
 	html = execEmbeddedCode(html, routeFile, {
 		routeFile,
+		routePath,
 		isDev,
 		escapeHtml,
 		getHtmlComponent,
@@ -288,6 +289,7 @@ function generateHTML(routeFile, devServPort, options = { disableTailwind: false
 			// Autoriser l'exécution de code et l'utilisation d'attributs
 			componentHtml = execEmbeddedCode(componentHtml, `${component}.html`, {
 				routeFile,
+				routePath,
 				isDev,
 				escapeHtml,
 				getHtmlComponent,
@@ -527,7 +529,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 				else if(route.file){
 					if(route.file.endsWith(".html")){
 						actionType = "sendHtml"
-						actionContent = generateHTML(route.file, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
+						actionContent = generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
 					} else if(route.file.endsWith(".js")){
 						actionType = "sendJs"
 						actionContent = fs.readFileSync(route.file, "utf8")
@@ -535,8 +537,13 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 						if(!route.options?.preventMinify){
 							if(minifiedFiles[route.file]) actionContent = minifiedFiles[route.file]
 							else {
-								actionContent = (await Terser.minify(actionContent))?.code || actionContent
-								if(!isDev) minifiedFiles[route.file] = actionContent
+								try {
+									actionContent = (await Terser.minify(actionContent))?.code || actionContent
+									if(!isDev) minifiedFiles[route.file] = actionContent
+								} catch (err) {
+									consola.warn(`Erreur lors de la minification du fichier ${route?.file || route}`, err?.message || err?.toString() || err)
+									actionContent = "Cannot minify file, check roc console"
+								}
 							}
 						}
 					} else {
@@ -590,7 +597,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 							res.redirect(statusCode, content)
 						},
 						send404: () => {
-							if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(generateHTML(path.join(projectPath, "404.html"), port))
+							if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(generateHTML(path.join(projectPath, "404.html"), req.path, port))
 							else res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 						},
 						initialAction: { type: actionType, content: actionContent },
@@ -608,7 +615,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					if(actionType == "sendFile") return res.sendFile(actionContent)
 					if(actionType == "redirect") return res.redirect(actionContent)
 					if(actionType == "404"){
-						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), port))
+						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), req.path, port))
 						return res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 					}
 				}
@@ -624,7 +631,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 
 	// On ajoute la page 404
 	app.use((req, res) => {
-		if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), port))
+		if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), req.path, port))
 		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 	})
 }
@@ -713,7 +720,7 @@ async function buildRoutes(){
 			if(!route.file && route.options?.redirect) var content = `<!DOCTYPE html><html><head><title>Redirecting</title><meta http-equiv="refresh" content="0; url=${encodeURI(route.options.redirect.replace(/"/g, "\\\""))}"><script>location.href="${encodeURI(route.options.redirect.replace(/"/g, "\\\""))}"</script></head><body><a href="${encodeURI(route.options.redirect.replace(/"/g, "\\\""))}">Click here to force redirection</a></body></html>`
 
 			// Si on a un fichier HTML
-			else if(route.file && route.file.endsWith(".html")) var content = generateHTML(route.file, 0, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
+			else if(route.file && route.file.endsWith(".html")) var content = generateHTML(route.file, route.path, 0, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
 
 			// Si on a pas su quoi faire
 			else if(!route.file) return consola.warn(`Route : ${chalk.blue(route.path)} est mal configuré, vérifier le fichier de routage ou le dossier "public".`)
@@ -739,13 +746,13 @@ async function buildRoutes(){
 
 			// On écrit le fichier HTML
 			if(content){
+				const finalFilePath = path.join(projectPath, "..", config.buildDir, route.path)
 				// Créer les dossiers si besoin
 				if(route.path.includes("/") && !fs.existsSync(path.join(projectPath, "..", config.buildDir, route.path.split("/").slice(0, -1).join("/")))){
 					fs.mkdirSync(path.join(projectPath, "..", config.buildDir, route.path.split("/").slice(0, -1).join("/")), { recursive: true })
 				}
 
-				// Écrire le fichier
-				fs.writeFileSync(path.join(projectPath, "..", config.buildDir, route.path), content.toString())
+				fs.writeFileSync(finalFilePath, content.toString())
 			}
 
 			// Si on a pas de contenu, c'est car c'est pas un fichier HTML, donc on copie le fichier
@@ -758,7 +765,13 @@ async function buildRoutes(){
 				// Si c'est un fichier JS et qu'on veut le minifier
 				if(route.file.endsWith(".js")){
 					// On va minifier le fichier
-					var minifiedJs = await Terser.minify(fs.readFileSync(route.file, "utf8"))
+					var minifiedJs
+					try {
+						minifiedJs = await Terser.minify(fs.readFileSync(route.file, "utf8"))
+					} catch (err) {
+						consola.warn(`Erreur lors de la minification du fichier ${route?.file || route}`)
+						throw (err?.message || err?.toString() || err)
+					}
 
 					// Écrire le fichier
 					fs.writeFileSync(path.join(projectPath, "..", config.buildDir, route.path), minifiedJs.code)
@@ -934,7 +947,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 		if(!route) return false
 		if(!route?.file) return false
 
-		return generateHTML(route.file, server?.address ? server?.address()?.port : options?.port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
+		return generateHTML(route.file, routePath, server?.address ? server?.address()?.port : options?.port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
 	}
 	this.generateJS = async function(routePath){
 		if(!routePath) return false
@@ -953,9 +966,13 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 			if(!route.options?.preventMinify){
 				if(minifiedFiles[route.file]) content = minifiedFiles[route.file]
 				else {
-					if(!Terser) Terser = require("terser")
-					content = (await Terser.minify(content))?.code || content
-					if(!isDev) minifiedFiles[route.file] = content
+					try {
+						if(!Terser) Terser = require("terser")
+						content = (await Terser.minify(content))?.code || content
+						if(!isDev) minifiedFiles[route.file] = content
+					} catch (err) {
+						consola.warn(`Erreur lors de la minification du fichier ${route?.file || route}`, err?.message || err?.toString() || err)
+					}
 				}
 			}
 		} catch (err) {}
