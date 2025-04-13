@@ -521,7 +521,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 			if(routePath.endsWith("/index")) routePath = routePath.slice(0, -5)
 			if(routePath.endsWith("/index.html")) routePath = routePath.slice(0, -10)
 
-			if(addedRoutes.find(r => r.method == method && r.routePath == routePath)) return console.log("on a déjà")
+			if(addedRoutes.find(r => r.method == method && r.routePath == routePath)) return
 			addedRoutes.push({ method, routePath })
 
 			app[method](routePath, async (req, res) => {
@@ -535,12 +535,11 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					return
 				}
 
-				// Ajouter un slash à la fin de l'URL si nécessaire
-				if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`)
-
 				// Sinon, on envoie le fichier
 				if(route.file){
 					if(route.file.endsWith(".html")){
+						if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`) // Ajouter un slash à la fin de l'URL
+
 						actionType = "sendHtml"
 						actionContent = generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
 					} else if(route.file.endsWith(".js")){
@@ -851,10 +850,9 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	buildFiles.forEach(filePath => {
 		function addRoute(routePath){
 			staticServer.get(routePath.startsWith("/") ? routePath : `/${routePath}`, async (req, res) => {
-				// Ajouter un slash à la fin de l'URL si nécessaire
-				if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`)
-
 				if(filePath.endsWith(".html")){
+					if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`) // Ajouter un slash à la fin de l'URL
+
 					var fileContent
 					try {
 						fileContent = fs.readFileSync(filePath)
