@@ -532,9 +532,14 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 				if(!route.file && route.options?.redirect){
 					actionType = "redirect"
 					actionContent = route?.options?.redirect
+					return
 				}
+
+				// Ajouter un slash à la fin de l'URL si nécessaire
+				if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`)
+
 				// Sinon, on envoie le fichier
-				else if(route.file){
+				if(route.file){
 					if(route.file.endsWith(".html")){
 						actionType = "sendHtml"
 						actionContent = generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
@@ -559,6 +564,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 						actionContent = route.file // Sinon on envoie le fichier
 					}
 				}
+
 				// Si on a pas su quoi faire
 				else {
 					actionType = "404"
@@ -845,6 +851,9 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	buildFiles.forEach(filePath => {
 		function addRoute(routePath){
 			staticServer.get(routePath.startsWith("/") ? routePath : `/${routePath}`, async (req, res) => {
+				// Ajouter un slash à la fin de l'URL si nécessaire
+				if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`)
+
 				if(filePath.endsWith(".html")){
 					var fileContent
 					try {
