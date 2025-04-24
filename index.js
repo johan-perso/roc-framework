@@ -333,6 +333,7 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 	if(domHead && !domHeadSiteInfo.length) domHead.append(`<script id="reserved-roc-siteinfos">window.roc = ${JSON.stringify({
 		projectVersion: projectPkg?.version || undefined,
 		rocVersion: rocPkg?.version || undefined,
+		lastCommit: lastCommitHash || undefined,
 		isDev: isDev ? true : undefined,
 	})}</script>`)
 
