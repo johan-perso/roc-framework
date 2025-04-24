@@ -880,6 +880,12 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 						return res.status(500).setHeader("Content-Type", "text/plain").send("Roc | Erreur interne du serveur, veuillez réessayer...")
 					}
 
+					// Si le fichier contient une redirection
+					if(fileContent.includes("<meta http-equiv=\"refresh\" content=\"0; url=")){
+						var redirectUrl = fileContent.split("<meta http-equiv=\"refresh\" content=\"0; url=")[1].split("\">")[0]
+						if(redirectUrl.length) return res.redirect(redirectUrl)
+					}
+
 					res.setHeader("Content-Type", "text/html").send(fileContent)
 				} else {
 					var mimeType = mime.getType(filePath)
@@ -908,6 +914,9 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 
 	// On ajoute la page 404
 	staticServer.use((req, res) => {
+		// dans le cas où la page d'erreur 404 contient une redirection (en raison du _routing.json), il est mieux de servir
+		// une page avec un statut 404 qui redirige ailleurs, plutôt que de directement rediriger vers une autre page.
+		// cela permet de ne pas avoir de faux résultats dans les moteurs de recherche, qui penseraient que certaines 404 soient valides.
 		if(fs.existsSync(path.join(buildDir, "404.html"))) return res.status(404).sendFile(path.join(buildDir, "404.html"))
 		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 	})
