@@ -10,6 +10,7 @@ const chalk = require("chalk")
 const { consola } = require("consola")
 const compression = require("compression")
 const cheerio = require("cheerio")
+const childProcess = require("child_process")
 const rocPkg = require("./package.json")
 require("dotenv").config()
 var QRCode
@@ -18,6 +19,7 @@ var Terser
 var minifiedFiles = {}
 var components = []
 
+var lastCommitHash = null
 var projectPkg = null
 var projectPath = path.join(process.cwd(), "public")
 
@@ -47,7 +49,7 @@ if(fromCli){
 	else if(process.argv.slice(2)[0] == "build") buildRoutes() // build les fichiers
 	else if(process.argv.slice(2)[0] == "start"){
 		if(process.argv.slice(2).includes("--no-build")){ // démarrer le serveur statique sans build à cause de l'argument --no-build
-			consola.warn("Vous avez utilisé l'argument --no-build, le serveur statique va démarrer sans build.")
+			consola.warn("Utilisation de l'argument --no-build, le serveur statique va démarrer sans build.")
 			return startStaticServer()
 		}
 		else buildRoutes().then(result => result == true ? startStaticServer() : process.exit(1)) // build les fichiers puis démarrer le serveur statique
@@ -97,6 +99,19 @@ function execEmbeddedCode(html, routeFile, context){
 	return html
 }
 
+// Fonction pour récupérer l'hash du dernier commit d'un dépôt Git
+function getLastCommitHash(cwd){
+	if(!fs.existsSync(path.join(cwd, ".git"))) return null
+
+	try {
+		var hash = childProcess.execSync("git rev-parse --short HEAD", { cwd }).toString().trim()
+		return hash
+	} catch (err) {
+		consola.warn("Impossible de récupérer le hash du dernier commit Git, la version du site ne sera pas disponible au client.")
+		return null
+	}
+}
+
 // Fonction pour afficher un QR code dans le terminal
 function showQRCode(content){
 	if(!QRCode) QRCode = require("qrcode")
@@ -136,6 +151,8 @@ function initVariables(configParam = null){ // configParam doit être présent s
 
 	// Si on utilise pas Tailwind CSS, on recommande de supprimer le fichier de config
 	if(config && !config.useTailwindCSS && fs.existsSync(path.join(projectPath, "..", "tailwind.config.js"))) consola.warn("Vous avez désactivé l'utilisation de Tailwind CSS, vous pouvez supprimer le fichier \"tailwind.config.js\"")
+
+	lastCommitHash = getLastCommitHash(path.join(projectPath, ".."))
 
 	// Si on a des erreurs, on les retourne
 	if(errorsReturned) return errorsReturned
@@ -383,7 +400,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 			}
 
 			// Afficher les boxes dans la console
-			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré (${isDev ? "dev" : "prod"})\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
+			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur ${fromCli ? "de développement" : "dynamique"} démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Environnement")}    ${isDev ? "Développement" : "Production"}\n ${chalk.dim("┃")} ${chalk.bold("Commit")}           ${lastCommitHash || "Inconnu"}\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}            ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}           ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}${global.tunnelLink ? `\n ${chalk.dim("┃")} ${chalk.bold("Externe")}    ${chalk.blueBright(global.tunnelLink)}` : ""}`),
 			fromCli && process.stdin.isTTY ? consola.box(`${chalk.bgBlueBright(" ROC ")} Raccourcis disponibles :\n\n ${chalk.dim("━")} ${chalk.bold("r")}         ${chalk.blueBright("Redémarre le serveur en relancant les analyses")}\n ${chalk.dim("━")} ${chalk.bold("q")}         ${chalk.blueBright("Ferme le serveur puis quitte le processus")}\n ${chalk.dim("━")} ${chalk.bold("c")}         ${chalk.blueBright("Affiche un QR Code pour accéder au serveur")}\n ${chalk.dim("━")} ${chalk.bold("t")}         ${chalk.blueBright("Ouvre un tunnel accessible hors du réseau")}\n ${chalk.dim("━")} ${chalk.bold("CTRL+L")}    ${chalk.blueBright("Vide le contenu de la console")}`) : `\n${chalk.yellow("⚠")} Les raccourcis clavier ne sont pas disponibles dans cet environnement.\n`
 
 			// Si on a déjà démarré le serveur, on va juste redémarrer
@@ -825,7 +842,7 @@ async function startStaticServer(port = parseInt(process.env.PORT || config.devP
 	staticServer.use(compression())
 	await new Promise((resolve, reject) => {
 		staticServer.listen(port, async () => {
-			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur statique démarré (${isDev ? "dev" : "prod"})\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}      ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}     ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}`)
+			consola.box(`${chalk.bgBlueBright(" ROC ")} Serveur statique démarré\n\n ${chalk.dim("┃")} ${chalk.bold("Environnement")}    ${isDev ? "Développement" : "Production"}\n ${chalk.dim("┃")} ${chalk.bold("Commit")}           ${lastCommitHash || "Inconnu"}\n\n ${chalk.dim("┃")} ${chalk.bold("Local")}            ${chalk.blueBright(`http://127.0.0.1:${port}`)}\n ${chalk.dim("┃")} ${chalk.bold("Réseau")}           ${chalk.blueBright(`http://${await getLocalIP()}:${port}`)}`),
 			resolve()
 		})
 
