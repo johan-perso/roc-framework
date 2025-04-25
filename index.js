@@ -103,13 +103,30 @@ function execEmbeddedCode(html, routeFile, context){
 function getLastCommitHash(cwd){
 	if(!fs.existsSync(path.join(cwd, ".git"))) return null
 
+	var hash
+
 	try {
-		var hash = childProcess.execSync("git rev-parse --short HEAD", { cwd }).toString().trim()
-		return hash
+		hash = childProcess.execSync("git rev-parse --short HEAD", { cwd }).toString().trim()
 	} catch (err) {
-		consola.warn("Impossible de récupérer le hash du dernier commit Git, la version du site ne sera pas disponible au client.")
+		consola.warn("Impossible de récupérer le hash du dernier commit Git via la méthode n°1, on essaye la deuxième méthode.")
+	}
+
+	if(!hash) try { // Fallback: on essaye de lire depuis le dossier .git directement
+		const headPath = path.join(cwd, ".git", "HEAD")
+		const headContent = fs.readFileSync(headPath, "utf8").trim()
+		console.log(headContent)
+		if(headContent.startsWith("ref:")){
+			const refPath = headContent.split(" ")[1]
+			const fullRefPath = path.join(cwd, ".git", refPath)
+			hash = fs.readFileSync(fullRefPath, "utf8").trim().slice(0, 8) // hash raccourci
+		} else hash = headContent.slice(0, 8)
+	} catch (err) {
+		consola.warn("Impossible de récupérer le hash du dernier commit Git via la méthode n°2, la version du site ne sera pas disponible au client.")
 		return null
 	}
+
+	if(hash && hash.length) return hash
+	else return null
 }
 
 // Fonction pour afficher un QR code dans le terminal
