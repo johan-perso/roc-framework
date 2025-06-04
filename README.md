@@ -330,4 +330,4 @@ Vous pouvez déployer votre projet sur Vercel à l'aide du fichier `vercel.json`
 
 ## Licence
 
-MIT © [Johan](https://johanstick.fr)
+MIT © [Johan](https://johanstick.fr). [Soutenez ce projet](https://johanstick.fr/#donate) si vous souhaitez m'aider 💙
