@@ -114,7 +114,6 @@ function getLastCommitHash(cwd){
 	if(!hash) try { // Fallback: on essaye de lire depuis le dossier .git directement
 		const headPath = path.join(cwd, ".git", "HEAD")
 		const headContent = fs.readFileSync(headPath, "utf8").trim()
-		console.log(headContent)
 		if(headContent.startsWith("ref:")){
 			const refPath = headContent.split(" ")[1]
 			const fullRefPath = path.join(cwd, ".git", refPath)
@@ -221,10 +220,12 @@ function getRoutes(){
 	routes = []
 	components = []
 	walk(path.join(projectPath)).forEach(file => {
+		var relativeFilePath = path.relative(projectPath, file)
+
 		// Ajouter les composants, et exposer uniquement en fonction de config.exposeComponents
-		if(path.relative(projectPath, file).startsWith("components/")){
-			var loweredCaseName = path.relative(projectPath, file).toLowerCase().trim()
-			if(loweredCaseName.startsWith("components/")) loweredCaseName = loweredCaseName.replace("components/", "")
+		if(relativeFilePath.startsWith(`components${path.sep}`)){
+			var loweredCaseName = relativeFilePath.toLowerCase().trim()
+			if(loweredCaseName.startsWith(`components${path.sep}`)) loweredCaseName = loweredCaseName.replace(`components${path.sep}`, "")
 			if(loweredCaseName.endsWith(".html")) loweredCaseName = loweredCaseName.slice(0, -5)
 			components.push(loweredCaseName)
 			if(!config.exposeComponents) return
@@ -712,21 +713,23 @@ async function buildRoutes(){
 	var routes = []
 	components = []
 	walk(path.join(projectPath)).forEach(file => {
+		var relativeFilePath = path.relative(projectPath, file)
+
 		// Ajouter les composants, et exposer uniquement en fonction de config.exposeComponents
-		if(path.relative(projectPath, file).startsWith("components/")){
-			var loweredCaseName = path.relative(projectPath, file).toLowerCase().trim()
-			if(loweredCaseName.startsWith("components/")) loweredCaseName = loweredCaseName.replace("components/", "")
+		if(relativeFilePath.startsWith(`components${path.sep}`)){
+			var loweredCaseName = relativeFilePath.toLowerCase().trim()
+			if(loweredCaseName.startsWith(`components${path.sep}`)) loweredCaseName = loweredCaseName.replace(`components${path.sep}`, "")
 			if(loweredCaseName.endsWith(".html")) loweredCaseName = loweredCaseName.slice(0, -5)
 			components.push(loweredCaseName)
 			if(!config.exposeComponents) return
 		}
 
 		// Ne pas ajouter certains fichiers
-		if(path.relative(projectPath, file) == "_routing.json") return // fichier de routing
+		if(relativeFilePath == "_routing.json") return // fichier de routing
 		if(path.basename(file) == ".DS_Store") return // fichiers .DS_Store
 
 		// Ajouter la route
-		routes.push({ path: path.relative(projectPath, file).replace(/\\/g, "/"), file: file })
+		routes.push({ path: relativeFilePath.replace(/\\/g, "/"), file: file })
 	})
 
 	// Si le fichier de routing existe
