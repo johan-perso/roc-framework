@@ -107,9 +107,7 @@ function getLastCommitHash(cwd){
 
 	try {
 		hash = childProcess.execSync("git rev-parse --short HEAD", { cwd }).toString().trim()
-	} catch (err) {
-		consola.warn("Impossible de récupérer le hash du dernier commit Git via la méthode n°1, on essaye la deuxième méthode.")
-	}
+	} catch (err) {}
 
 	if(!hash) try { // Fallback: on essaye de lire depuis le dossier .git directement
 		const headPath = path.join(cwd, ".git", "HEAD")
@@ -120,7 +118,7 @@ function getLastCommitHash(cwd){
 			hash = fs.readFileSync(fullRefPath, "utf8").trim().slice(0, 8) // hash raccourci
 		} else hash = headContent.slice(0, 8)
 	} catch (err) {
-		consola.warn("Impossible de récupérer le hash du dernier commit Git via la méthode n°2, la version du site ne sera pas disponible au client.")
+		consola.warn("Impossible de récupérer le hash du dernier commit Git, celui-ci ne sera pas fourni au client.")
 		return null
 	}
 
