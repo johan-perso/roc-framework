@@ -89,7 +89,7 @@ function execEmbeddedCode(html, routeFile, context){
 	}
 
 	try {
-		html = html.replace(/\{\{\s*((?:(?!\$).)*?)\s*\}\}/g, (match, p1) => {
+		html = html.replace(/\{\{\s*((?:(?!\$).)*?)\s*\}\}/g, (match, p1) => { // remplace les blocs {{ code }}
 			return function(){ return eval(p1) }.call(context)
 		})
 	} catch (err) {
@@ -278,11 +278,12 @@ async function generateTailwindCSS(){
 }
 
 // Générer le code HTML d'une page
-function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false }){
+function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false, bypassHtmlContent: null, }, iteration = 0){
 	// Lire le fichier HTML
 	var html
 	try {
-		html = fs.readFileSync(path.join(routeFile), "utf8")
+		if(options.bypassHtmlContent) html = options.bypassHtmlContent
+		else html = fs.readFileSync(path.join(routeFile), "utf8")
 	} catch (err) {
 		html = "_404"
 	}
@@ -299,6 +300,8 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 		escapeHtml,
 		getHtmlComponent,
 		options,
+		componentName: options?.componentName || undefined,
+		componentAttribs: options?.componentAttribs || undefined,
 	})
 
 	// Parser le DOM
@@ -317,20 +320,23 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 			var componentAttribs = el?.attribs
 			var componentHtml = getHtmlComponent(componentName)
 
-			if(!componentName || !componentHtml) return
+			if(!componentName) return consola.warn(`Un composant sans nom a été détecté dans la route ${routeFile}, celui-ci sera ignoré.`)
+			if(!componentHtml) return consola.warn(`Le composant "${componentName}" n'a pas pu être trouvé pour la route ${routeFile}, celui-ci sera ignoré.`)
+			if(iteration >= 10) return consola.warn(`Le composant "${componentName}" dans la route ${routeFile} a atteint la limite maximale d'itérations (10). Cela peut être dû à une boucle infinie de composants imbriqués.`)
 
-			// Autoriser l'exécution de code et l'utilisation d'attributs
-			componentHtml = execEmbeddedCode(componentHtml, `${component}.html`, {
+			componentHtml = generateHTML(
 				routeFile,
 				routePath,
-				isDev,
-				escapeHtml,
-				getHtmlComponent,
-				options,
-				componentName,
-				componentAttribs
-			})
-			componentHtml = componentHtml.replace(/\{\{\s*\$\s*([\s\S]*?)\s*\}\}/g, (match, p1) => {
+				devServPort,
+				{
+					...options,
+					bypassHtmlContent: componentHtml,
+					componentName,
+					componentAttribs,
+				},
+				iteration + 1 || 0
+			)
+			componentHtml = componentHtml.replace(/\{\{\s*\$\s*([\s\S]*?)\s*\}\}/g, (match, p1) => { // remplace les blocs {{$ attribut }}
 				return componentAttribs[p1.toLowerCase().trim()] || `$${p1}`
 			})
 
