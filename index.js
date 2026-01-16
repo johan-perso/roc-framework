@@ -83,12 +83,15 @@ function getHtmlComponent(componentPath){
 
 // Fonction pour exécuter du code côté serveur depuis une page
 function execEmbeddedCode(html, routeFile, context){
-	if(!config.serversideCodeExecution){
-		consola.warn(`L'exécution de code côté serveur pour le fichier ${routeFile} n'a pas fonctionné puisque cette fonctionnalité est désactivé dans la configuration.`)
-		return html
-	}
-
 	try {
+		if(!config.serversideCodeExecution) {
+			var matches = html.match(/\{\{\s*((?:(?!\$).)*?)\s*\}\}/g) // détecter les blocs {{ code }}
+			if(matches && matches.length){
+				consola.warn(`L'exécution de code côté serveur pour le fichier ${routeFile} n'a pas fonctionné puisque cette fonctionnalité est désactivé dans la configuration.\nLes blocs suivants n'ont pas été exécutés :\n• ${matches.join("\n • ")}`)
+			}
+			return html
+		}
+
 		html = html.replace(/\{\{\s*((?:(?!\$).)*?)\s*\}\}/g, (match, p1) => { // remplace les blocs {{ code }}
 			return function(){ return eval(p1) }.call(context)
 		})
