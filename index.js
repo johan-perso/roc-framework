@@ -278,7 +278,7 @@ async function generateTailwindCSS(){
 }
 
 // Générer le code HTML d'une page
-function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false, bypassHtmlContent: null, }, iteration = 0){
+async function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false, bypassHtmlContent: null, }, iteration = 0){
 	// Lire le fichier HTML
 	var html
 	try {
@@ -291,6 +291,7 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 
 	// Forcer la minification si on est sur serv dynamique et que l'option est activé dans la config
 	if(!fromCli && config.minifyHtml) options.forceMinify = true
+	var shouldMinifyHtml = ((config.minifyHtml && !options.preventMinify) || options.forceMinify)
 
 	// Exécuter du code côté serveur depuis le fichier HTML
 	html = execEmbeddedCode(html, routeFile, {
@@ -315,7 +316,7 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 		var usesInDom = Array.from(allElementsInDom.filter((i, el) => el.name.toLowerCase() == component))
 		if(!usesInDom.length) continue // on utilise pas ce composant dans cette page
 
-		usesInDom.forEach(el => {
+		await Promise.all(usesInDom.map(async (el) => {
 			var componentName = el?.name || component
 			var componentAttribs = el?.attribs
 			var componentHtml = getHtmlComponent(componentName)
@@ -324,7 +325,7 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 			if(!componentHtml) return consola.warn(`Le composant "${componentName}" n'a pas pu être trouvé pour la route ${routeFile}, celui-ci sera ignoré.`)
 			if(iteration >= 10) return consola.warn(`Le composant "${componentName}" dans la route ${routeFile} a atteint la limite maximale d'itérations (10). Cela peut être dû à une boucle infinie de composants imbriqués.`)
 
-			componentHtml = generateHTML(
+			componentHtml = await generateHTML(
 				routeFile,
 				routePath,
 				devServPort,
@@ -336,6 +337,7 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 				},
 				iteration + 1 || 0
 			)
+
 			componentHtml = componentHtml.replace(/\{\{\s*\$\s*([\s\S]*?)\s*\}\}/g, (match, p1) => { // remplace les blocs {{$ attribut }}
 				return componentAttribs[p1.toLowerCase().trim()] || `$${p1}`
 			})
@@ -343,7 +345,7 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 			// Ajouter le composant dans le DOM
 			if(componentHtml) dom(el).replaceWith(componentHtml)
 			else consola.warn(`Le composant "${componentName}" n'a pas pu être trouvé pour la route ${routeFile}`)
-		})
+		}))
 	}
 
 	// Ajouter un header "generator" dans le head
@@ -358,6 +360,18 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 		lastCommit: lastCommitHash || undefined,
 		isDev: isDev ? true : undefined,
 	})}</script>`)
+
+	// Minifier tout les <script> inline
+	await Promise.all(allElementsInDom.filter((i, el) => el.name.toLowerCase() == "script" && !el.attribs?.src).map(async (i, el) => {
+		try {
+			var originalJs = dom(el).html()
+			if(!Terser) Terser = require("terser")
+			var minifiedJs = await Terser.minify(originalJs, { toplevel: true })
+			if(minifiedJs && minifiedJs.code) dom(el).html(minifiedJs.code)
+		} catch (err) {
+			consola.warn(`Le code JavaScript inline dans la route ${routeFile} n'a pas pu être minifié.`, err)
+		}
+	}))
 
 	// Si on est en développement (CLI) ou option activé (dynamique), on va ajouter le live reload
 	if(globalLiveReloadEnabled || (fromCli && process.argv.slice(2)[0] == "dev" && !options.disableLiveReload)){
@@ -377,7 +391,20 @@ function generateHTML(routeFile, routePath, devServPort, options = { disableTail
 
 	// On retourne le code HTML
 	try {
-		return ((config.minifyHtml && !options.preventMinify) || options.forceMinify) ? htmlMinify(html, { useShortDoctype: true, removeStyleLinkTypeAttributes: true, removeScriptTypeAttributes: true, removeComments: true, minifyURLs: true, minifyJS: true, minifyCSS: true, caseSensitive: true, preserveLineBreaks: true, collapseWhitespace: true, continueOnParseError: true }) : html
+		return shouldMinifyHtml
+			? htmlMinify(html, {
+				useShortDoctype: true,
+				removeStyleLinkTypeAttributes: true,
+				removeScriptTypeAttributes: true,
+				removeComments: true,
+				minifyURLs: true,
+				minifyJS: false, // provoque un problème de parsing bizzare lorsqu'un composant a un attribut "onclick" ça lui retire les accolades autour
+				minifyCSS: true,
+				caseSensitive: true,
+				preserveLineBreaks: true,
+				collapseWhitespace: true,
+				continueOnParseError: true
+			}) : html
 	} catch (err) {
 		consola.warn(err?.error || err?.message || err?.toString() || err)
 		return html // on envoie le HTML non minifié si on a une erreur
@@ -581,7 +608,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 						if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`) // Ajouter un slash à la fin de l'URL
 
 						actionType = "sendHtml"
-						actionContent = generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
+						actionContent = await generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
 					} else if(route.file.endsWith(".js")){
 						actionType = "sendJs"
 						actionContent = fs.readFileSync(route.file, "utf8")
@@ -649,8 +676,8 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 							if(options.headers) res.set(options.headers)
 							res.redirect(statusCode, content)
 						},
-						send404: () => {
-							if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(generateHTML(path.join(projectPath, "404.html"), req.path, port))
+						send404: async () => {
+							if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
 							else res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 						},
 						initialAction: { type: actionType, content: actionContent },
@@ -668,7 +695,7 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 					if(actionType == "sendFile") return res.sendFile(actionContent)
 					if(actionType == "redirect") return res.redirect(actionContent)
 					if(actionType == "404"){
-						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), req.path, port))
+						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
 						return res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 					}
 				}
@@ -683,8 +710,8 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	})
 
 	// On ajoute la page 404
-	app.use((req, res) => {
-		if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(generateHTML(path.join(projectPath, "404.html"), req.path, port))
+	app.use(async (req, res) => {
+		if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
 		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 	})
 }
@@ -775,7 +802,7 @@ async function buildRoutes(){
 			if(!route.file && route.options?.redirect) var content = `<!DOCTYPE html><html><head><title>Redirecting</title><meta http-equiv="refresh" content="0; url=${encodeURI(route.options.redirect.replace(/"/g, "\\\""))}"><script>location.href="${encodeURI(route.options.redirect.replace(/"/g, "\\\""))}"</script></head><body><a href="${encodeURI(route.options.redirect.replace(/"/g, "\\\""))}">Click here to force redirection</a></body></html>`
 
 			// Si on a un fichier HTML
-			else if(route.file && route.file.endsWith(".html")) var content = generateHTML(route.file, route.path, 0, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
+			else if(route.file && route.file.endsWith(".html")) var content = await generateHTML(route.file, route.path, 0, { disableTailwind: route?.options?.disableTailwind, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
 
 			// Si on a pas su quoi faire
 			else if(!route.file) return consola.warn(`Route : ${chalk.blue(route.path)} est mal configuré, vérifier le fichier de routage ou le dossier "public".`)
@@ -1019,13 +1046,13 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	}
 
 	// Générer le contenu d'une route
-	this.generateHTML = function(routePath){
+	this.generateHTML = async function(routePath){
 		if(!routePath) return false
 		var route = routes.find(r => r.path == routePath)
 		if(!route) return false
 		if(!route?.file) return false
 
-		return generateHTML(route.file, routePath, server?.address ? server?.address()?.port : options?.port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
+		return await generateHTML(route.file, routePath, server?.address ? server?.address()?.port : options?.port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify })
 	}
 	this.generateJS = async function(routePath){
 		if(!routePath) return false
