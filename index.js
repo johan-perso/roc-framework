@@ -588,11 +588,10 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 		if(!route?.file && route?.options?.redirect){
 			actionType = "redirect"
 			actionContent = route?.options?.redirect
-			return
 		}
 
 		// Sinon, on envoie le fichier
-		if(route?.file){
+		else if(route?.file){
 			if(route.file.endsWith(".html")){
 				if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`) // Ajouter un slash à la fin de l'URL
 
