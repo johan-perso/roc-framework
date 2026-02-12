@@ -1044,7 +1044,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	// Fonction pour démarrer le serveur
 	this.start = async function(){
 		// Démarrer le serveur
-		await startServer(options.port)
+		await startServer(process.env.PORT || options.port)
 		this._emit("ready")
 	}
 
