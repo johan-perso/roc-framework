@@ -1,6 +1,6 @@
 {
     "name": "roc-framework",
-    "version": "4.0.5",
+    "version": "4.1.0",
     "description": "Un générateur simple et léger mais puissant pour aider au développement de sites statiques",
     "main": "index.js",
     "bin": {
@@ -27,7 +27,7 @@
         "consola": "^3.4.0",
         "daisyui": "4.12.23",
         "dotenv": "10.0.0",
-        "express": "^4.21.2",
+        "express": "^5.2.1",
         "html-minifier": "^4.0.0",
         "localtunnel": "^2.0.2",
         "mime": "3.0.0",
