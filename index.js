@@ -12,6 +12,7 @@ const compression = require("compression")
 const cheerio = require("cheerio")
 const childProcess = require("child_process")
 const rocPkg = require("./package.json")
+const HTTP_METHODS = require("http").METHODS
 require("dotenv").config()
 var QRCode
 
@@ -217,6 +218,7 @@ function walk(dir){
 
 // Obtenir la liste des routes
 var routes = []
+var customRoutes = []
 function getRoutes(){
 	routes = []
 	components = []
@@ -535,36 +537,35 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	// On récupère la liste des routes
 	if(serverRestart == 1) routesCount = getRoutes().length
 
-	// Si le fichier de routing existe
+	// Ajouter des routes personnalisées
+	var additionalRoutes = customRoutes || []
 	if(fs.existsSync(path.join(projectPath, "_routing.json"))){
-		// On lit le fichier
-		var routing
+		var routingFile
 		try {
-			routing = JSON.parse(fs.readFileSync(path.join(projectPath, "_routing.json"), "utf8"))
-			routing = Object.entries(routing)
+			routingFile = JSON.parse(fs.readFileSync(path.join(projectPath, "_routing.json"), "utf8"))
+			routingFile = Object.entries(routingFile)
+			if(routingFile) additionalRoutes.push(...routingFile)
 		} catch (err) {
 			consola.warn("Erreur lors de la lecture du fichier de routing", err)
 		}
-
-		// On les ajoute si on en a
-		if(routing) routing.forEach(([route, file]) => {
-			// Ajouter un slash au début de la route
-			if(!route.startsWith("/")) route = `/${route}`
-
-			// On ajoute la route
-			if(file.options?.showFile){
-				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
-				routes.push({ path: route, method: file.method, file: path.join(projectPath, "..", file.options.showFile), options: file.options }) // ajouter la nouvelle
-			}
-			else if(!file.options && file.method && routes.find(r => r.path == route.path)) routes.filter(r => r.path == route.path)[0].method = file.method // modifier l'ancienne
-			else if(file.options){
-				routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
-				routes.push({ path: route, method: file.method || "GET", options: file.options }) // ajouter la nouvelle
-			} else if(!fromCli){ // permettre de déclarer des routes sans fichier (dynamique)
-				routes.push({ path: route, method: file.method || "GET", options: file.options })
-			}
-		})
 	}
+	additionalRoutes.forEach(([route, file]) => {
+		// Ajouter un slash au début de la route
+		if(!route.startsWith("/")) route = `/${route}`
+
+		// On ajoute la route
+		if(file.options?.showFile){
+			routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
+			routes.push({ path: route, method: file.method, file: path.join(projectPath, "..", file.options.showFile), options: file.options }) // ajouter la nouvelle
+		}
+		else if(!file.options && file.method && routes.find(r => r.path == route.path)) routes.filter(r => r.path == route.path)[0].method = file.method // modifier l'ancienne
+		else if(file.options){
+			routes = routes.filter(r => r.path != (route || route.path)) // supprimer l'ancienne
+			routes.push({ path: route, method: file.method || "GET", options: file.options }) // ajouter la nouvelle
+		} else if(!fromCli){ // permettre de déclarer des routes sans fichier (dynamique)
+			routes.push({ path: route, method: file.method || "GET", options: file.options })
+		}
+	})
 
 	// Log les routes
 	var minimalRoutes = routes.slice(0, 7)
@@ -579,10 +580,120 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 	// Importer Terser
 	if(!Terser) Terser = require("terser")
 
+	async function handleRoute(req, res, route, routePath){
+		var actionType = ""
+		var actionContent = ""
+
+		// Si on a pas de "file", on vérifie si on doit pas faire une redirection
+		if(!route?.file && route?.options?.redirect){
+			actionType = "redirect"
+			actionContent = route?.options?.redirect
+			return
+		}
+
+		// Sinon, on envoie le fichier
+		if(route?.file){
+			if(route.file.endsWith(".html")){
+				if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`) // Ajouter un slash à la fin de l'URL
+
+				actionType = "sendHtml"
+				actionContent = await generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
+			} else if(route.file.endsWith(".js")){
+				actionType = "sendJs"
+				actionContent = fs.readFileSync(route.file, "utf8")
+
+				if(!route.options?.preventMinify){
+					if(minifiedFiles[route.file]) actionContent = minifiedFiles[route.file]
+					else {
+						try {
+							actionContent = (await Terser.minify(actionContent))?.code || actionContent
+							if(!isDev) minifiedFiles[route.file] = actionContent
+						} catch (err) {
+							consola.warn(`Erreur lors de la minification du fichier ${route?.file || route}`, err?.message || err?.toString() || err)
+							actionContent = "Cannot minify file, check roc console"
+						}
+					}
+				}
+			} else {
+				actionType = "sendFile"
+				actionContent = route.file // Sinon on envoie le fichier
+			}
+		}
+
+		// Si on a pas su quoi faire
+		else {
+			actionType = "404"
+			actionContent = `404: la route "${route.path}" est mal configuré.`
+		}
+
+		// Si on est en mode dynamique et que l'interception des requêtes est activés
+		if(!fromCli && config.interceptRequests){
+			var customReq = {
+				url: req.url,
+				path: req.path,
+				method: req.method,
+				headers: req.headers,
+				body: req.body,
+				query: req.query,
+				params: req.params,
+				cookies: req.cookies,
+				ip: req.ip,
+				hostname: req.hostname,
+				protocol: req.protocol,
+				secure: req.secure,
+				originalUrl: req.originalUrl,
+			}
+
+			var customRes = {
+				send: (statusCode = 200, content, options = {}) => {
+					if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+					if(options.headers) res.set(options.headers)
+					res.status(statusCode).send(content)
+				},
+				sendFile: (statusCode = 200, content, options = {}) => {
+					if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+					if(options.headers) res.set(options.headers)
+					res.status(statusCode).sendFile(content)
+				},
+				json: (statusCode = 200, content, options = {}) => {
+					if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+					if(options.headers) res.set(options.headers)
+					res.status(statusCode).json(content)
+				},
+				redirect: (statusCode = 302, content, options = {}) => {
+					if(checkCodeAndContentOrder(res, statusCode, content) != true) return
+					if(options.headers) res.set(options.headers)
+					res.redirect(statusCode, content)
+				},
+				send404: async () => {
+					if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
+					else res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
+				},
+				initialAction: { type: actionType, content: actionContent },
+			}
+
+			try {
+				_dynamicEmitter("request", customReq, customRes)
+			} catch (err) {
+				consola.error(err?.message || err?.toString() || err)
+			}
+
+		} else { // sinon, on effectue les actions de base (sans interception)
+			if(actionType == "sendHtml") return res.send(actionContent)
+			if(actionType == "sendJs") return res.header("Content-Type", "application/javascript").send(actionContent)
+			if(actionType == "sendFile") return res.sendFile(actionContent)
+			if(actionType == "redirect") return res.redirect(actionContent)
+			if(actionType == "404"){
+				if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
+				return res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
+			}
+		}
+	}
+
 	// On ajoute les routes
 	routes.forEach(route => {
 		// Si la méthode n'est pas valide, on ne l'ajoute pas
-		if(route.method && !require("http").METHODS.includes(route.method.toUpperCase())) return consola.warn(`La méthode ${route.method} n'est pas valide pour la route ${route.path}`)
+		if(route.method && !HTTP_METHODS.includes(route.method.toUpperCase())) return consola.warn(`La méthode ${route.method} n'est pas valide pour la route ${route.path}`)
 
 		// Fonction pour ajouter la route
 		var addedRoutes = []
@@ -595,125 +706,22 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 			addedRoutes.push({ method, routePath })
 
 			app[method](routePath, async (req, res) => {
-				var actionType = ""
-				var actionContent = ""
-
-				// Si on a pas de "file", on vérifie si on doit pas faire une redirection
-				if(!route.file && route.options?.redirect){
-					actionType = "redirect"
-					actionContent = route?.options?.redirect
-					return
-				}
-
-				// Sinon, on envoie le fichier
-				if(route.file){
-					if(route.file.endsWith(".html")){
-						if(!req.url.endsWith("/")) return res.redirect(`${req.url}/`) // Ajouter un slash à la fin de l'URL
-
-						actionType = "sendHtml"
-						actionContent = await generateHTML(route.file, routePath, port, { disableTailwind: route?.options?.disableTailwind, disableLiveReload: route?.options?.disableLiveReload, preventMinify: route?.options?.preventMinify, forceMinify: route?.options?.forceMinify }) // Si c'est un fichier .html, on génère le code HTML
-					} else if(route.file.endsWith(".js")){
-						actionType = "sendJs"
-						actionContent = fs.readFileSync(route.file, "utf8")
-
-						if(!route.options?.preventMinify){
-							if(minifiedFiles[route.file]) actionContent = minifiedFiles[route.file]
-							else {
-								try {
-									actionContent = (await Terser.minify(actionContent))?.code || actionContent
-									if(!isDev) minifiedFiles[route.file] = actionContent
-								} catch (err) {
-									consola.warn(`Erreur lors de la minification du fichier ${route?.file || route}`, err?.message || err?.toString() || err)
-									actionContent = "Cannot minify file, check roc console"
-								}
-							}
-						}
-					} else {
-						actionType = "sendFile"
-						actionContent = route.file // Sinon on envoie le fichier
-					}
-				}
-
-				// Si on a pas su quoi faire
-				else {
-					actionType = "404"
-					actionContent = `404: la route "${route.path}" est mal configuré.`
-				}
-
-				// Si on est en mode dynamique et que l'interception des requêtes est activés
-				if(!fromCli && config.interceptRequests){
-					var customReq = {
-						url: req.url,
-						path: req.path,
-						method: req.method,
-						headers: req.headers,
-						body: req.body,
-						query: req.query,
-						params: req.params,
-						cookies: req.cookies,
-						ip: req.ip,
-						hostname: req.hostname,
-						protocol: req.protocol,
-						secure: req.secure,
-						originalUrl: req.originalUrl,
-					}
-
-					var customRes = {
-						send: (statusCode = 200, content, options = {}) => {
-							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
-							if(options.headers) res.set(options.headers)
-							res.status(statusCode).send(content)
-						},
-						sendFile: (statusCode = 200, content, options = {}) => {
-							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
-							if(options.headers) res.set(options.headers)
-							res.status(statusCode).sendFile(content)
-						},
-						json: (statusCode = 200, content, options = {}) => {
-							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
-							if(options.headers) res.set(options.headers)
-							res.status(statusCode).json(content)
-						},
-						redirect: (statusCode = 302, content, options = {}) => {
-							if(checkCodeAndContentOrder(res, statusCode, content) != true) return
-							if(options.headers) res.set(options.headers)
-							res.redirect(statusCode, content)
-						},
-						send404: async () => {
-							if(fs.existsSync(path.join(projectPath, "404.html"))) res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
-							else res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
-						},
-						initialAction: { type: actionType, content: actionContent },
-					}
-
-					try {
-						_dynamicEmitter("request", customReq, customRes)
-					} catch (err) {
-						consola.error(err?.message || err?.toString() || err)
-					}
-
-				} else { // sinon, on effectue les actions de base (sans interception)
-					if(actionType == "sendHtml") return res.send(actionContent)
-					if(actionType == "sendJs") return res.header("Content-Type", "application/javascript").send(actionContent)
-					if(actionType == "sendFile") return res.sendFile(actionContent)
-					if(actionType == "redirect") return res.redirect(actionContent)
-					if(actionType == "404"){
-						if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
-						return res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
-					}
-				}
+				handleRoute(req, res, route, routePath)
 			})
 		}
 
 		// On ajoute la route
-		addRoute(route.method?.toLowerCase() || "get", route.path)
+		addRoute(route.method?.toLowerCase() || "get", route?.path)
 
 		// On en ajoute une autre si elle finit par .html, pour permettre d'accéder à la page sans l'extension
-		if(route.path.endsWith(".html")) addRoute(route.method?.toLowerCase() || "get", route.path.slice(0, -5))
+		if(route?.path?.endsWith(".html")) addRoute(route?.method?.toLowerCase() || "get", route?.path?.slice(0, -5))
 	})
 
 	// On ajoute la page 404
 	app.use(async (req, res) => {
+		// Autorise un serveur dynamique à intercepter les erreurs 404
+		if(!fromCli && config.interceptRequests) return handleRoute(req, res, {}, req.path)
+
 		if(fs.existsSync(path.join(projectPath, "404.html"))) return res.status(404).send(await generateHTML(path.join(projectPath, "404.html"), req.path, port))
 		res.status(404).send(`404: la page "${req.url}" n'existe pas.`)
 	})
@@ -1046,6 +1054,24 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 		// Démarrer le serveur
 		await startServer(process.env.PORT || options.port)
 		this._emit("ready")
+	}
+
+	// Fonction pour ajouter une nouvelle route personnalisée
+	this.registerRoutes = function(newRoutes){
+		if(!newRoutes || !Array.isArray(newRoutes)) return consola.warn("Vous devez fournir un array de routes à la fonction registerRoutes")
+		newRoutes.forEach(route => {
+			if(!route.path) return consola.warn("Chaque route doit avoir une propriété 'path'")
+			if(route.method && !HTTP_METHODS.includes(route.method.toUpperCase())) return consola.warn(`La méthode ${route.method} n'est pas valide pour la route ${route.path}`)
+
+			if(!route.path.startsWith("/")) route.path = `/${route.path}` // ajouter un slash au début de la route
+			customRoutes = customRoutes.filter(r => r.path != (route.path || route)) // supprimer l'ancienne route si elle existe déjà
+
+			customRoutes.push([
+				route.path,
+				{ path: route.path, method: route.method || "GET", file: route.file, options: route.options }
+			])
+		})
+		if(server) startServer(options.port) // redémarrer le serveur pour appliquer les changements
 	}
 
 	// Générer le contenu d'une route

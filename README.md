@@ -134,6 +134,19 @@ var server = new roc.server({
 	minifyHtml: true, // les pages HTML et les fichiers JavaScript seront minifiés, Tailwind CSS sera minifié et inclut dans la page, les autres fichiers ne seront pas impactés
 })
 
+// Vous pouvez ajouter des routes personnalisés, prioritaires par rapport aux fichiers présents dans le dossier `public`.
+// Les paramètres `method` et `path` sont requis, `options` est optionnel.
+// Par défaut, les routes retourneront une erreur 404, vous devrez intercepter les requêtes et y répondre manuellement.
+server.registerRoutes([
+	{
+		method: 'get',
+		path: '/exemple',
+		// options: {
+		// 	redirect: 'https://example.com',
+		// }
+	}
+])
+
 server.on('ready', () => { console.log('received msg ready!') }) // facultatif, permet de savoir quand le serveur est démarré
 server.on('request', (req, res) => { // requis si l'option interceptRequests est à true
 	// Ici, vous pourrez répondre aux requêtes que vous recevez en fonction de vos critières
@@ -149,10 +162,11 @@ server.on('request', (req, res) => { // requis si l'option interceptRequests est
 	// à l'heure actuelle, `options` ne permet que de définir des `headers` retournés avec la réponse
 
 	if(res.initialAction.type == 'sendHtml') res.send(200, res.initialAction.content.replaceAll('ROC', 'ROC Dynamic')) // TODO (user): à remplacer, c'est un simple exemple
-	if(res.initialAction.type == 'sendJs') res.send(200, res.initialAction.content, { headers: { 'Content-Type': 'application/javascript' } })
-	if(res.initialAction.type == 'sendFile') res.sendFile(200, res.initialAction.content)
-	if(res.initialAction.type == 'redirect') res.redirect(302, res.initialAction.content)
-	if(res.initialAction.type == '404') res.send404()
+	else if(res.initialAction.type == 'sendJs') res.send(200, res.initialAction.content, { headers: { 'Content-Type': 'application/javascript' } })
+	else if(res.initialAction.type == 'sendFile') res.sendFile(200, res.initialAction.content)
+	else if(res.initialAction.type == 'redirect') res.redirect(302, res.initialAction.content)
+	else if(res.initialAction.type == '404') res.send404()
+	else res.send(500, "Internal Server Error", { headers: { "Content-Type": "text/plain" } })
 })
 
 server.start()
@@ -166,7 +180,7 @@ server.start()
 */
 ```
 
-> Roc Dynamic a été créé par dessus le CLI, il est donc compliqué de démarrer plusieurs serveurs dans le même processus.
+> Roc Dynamic a été créé par dessus le CLI, il n'est donc pas possible de démarrer plusieurs serveurs dans le même processus.
 
 
 ---
@@ -189,7 +203,7 @@ ROC embarque un système de routage simple à utiliser.
 
 Tous les fichiers .html dans le dossier `public` seront automatiquement considérés comme des pages web et bénéficieront de fonctionnalité comme la minification, l'utilisation de Tailwind CSS et le rafraîchissement automatique pendant le développement. Les autres fichiers seront également accessibles sans ces fonctionnalités.
 
-Vous pouvez aussi ajouter une route personnalisée depuis le fichier de routage `public/_routing.json`. Ce fichier doit contenir un objet par route, avec ce format : `"/chemin/vers/la/page": { "options": { ... } }`.
+Vous pouvez aussi ajouter une route personnalisée depuis le fichier de routage `public/_routing.json`. Ce fichier doit contenir un objet par route, avec ce format : `"/chemin/vers/la/page": { "options": { ... } }`. *Si vous utilisez un serveur dynamique, vous pouvez utiliser `server.registerRoutes()`.*
 
 * `options` | `object` : options pour cette route, voir ci-dessous.
 
@@ -323,7 +337,7 @@ Vous pouvez déployer votre projet sur Vercel à l'aide du fichier `vercel.json`
 
 ### Ailleurs
 
-**Statique :** pour servir votre site, vous pouvez utiliser un simple hébergeur web et lui donner les fichiers présents dans le dossier `build` après la phase de build. Sur votre infrastructure, vous pouvez utiliser un serveur web tel que Nginx ou Apache pour servir les fichiers.
+**Statique :** pour servir votre site, vous pouvez utiliser un simple hébergeur web et lui donner les fichiers présents dans le dossier `build` après la phase de build. Sur votre infrastructure, vous pouvez utiliser un serveur web tel que Nginx ou Apache pour servir les fichiers.  
 **Dynamique :** vous aurez besoin d'une machine en capacité d'exécuter votre fichier JavaScript (un VPS par exemple), ROC s'occupera du serveur et vous n'aurez pas besoin de Nginx ou d'alternatives similaires.
 
 
