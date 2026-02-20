@@ -283,7 +283,7 @@ async function generateTailwindCSS(){
 }
 
 // Générer le code HTML d'une page
-async function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false, bypassHtmlContent: null, }, iteration = 0){
+async function generateHTML(routeFile, routePath, devServPort, options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false, bypassHtmlContent: null }, iteration = 0){
 	// Lire le fichier HTML
 	var html
 	try {
@@ -627,9 +627,16 @@ async function startServer(port = parseInt(process.env.PORT || config.devPort ||
 
 		// Si on est en mode dynamique et que l'interception des requêtes est activés
 		if(!fromCli && config.interceptRequests){
+			var simplifiedPath = !req?.path?.length ? "" : req.path
+			if(simplifiedPath.includes("?")) simplifiedPath = simplifiedPath.split("?")[0] // retirer les query params
+			if(simplifiedPath.includes("#")) simplifiedPath = simplifiedPath.split("#")[0] // retirer les hash
+			if(simplifiedPath.startsWith("/")) simplifiedPath = simplifiedPath.slice(1)
+			if(simplifiedPath.endsWith("/")) simplifiedPath = simplifiedPath.slice(0, -1)
+
 			var customReq = {
 				url: req.url,
 				path: req.path,
+				simplifiedPath: simplifiedPath,
 				method: req.method,
 				headers: req.headers,
 				body: req.body,
@@ -1053,6 +1060,26 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 		// Démarrer le serveur
 		await startServer(process.env.PORT || options.port)
 		this._emit("ready")
+	}
+
+	// Fonction pour générer une page à partir d'un fichier HTML
+	this.renderPage = async function(
+		htmlContent = "",
+		route = { file: null, path: null },
+		options = { disableTailwind: false, disableLiveReload: false, preventMinify: false, forceMinify: false },
+	){
+		return await generateHTML(
+			route?.file, // routeFile
+			route?.path, // routePath
+			server?.address ? server?.address()?.port : options?.port, // devSevPort
+			{
+				disableTailwind: options?.disableTailwind,
+				disableLiveReload: options?.disableLiveReload,
+				preventMinify: options?.preventMinify,
+				forceMinify: options?.forceMinify,
+				bypassHtmlContent: htmlContent
+			}
+		)
 	}
 
 	// Fonction pour ajouter une nouvelle route personnalisée
