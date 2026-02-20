@@ -119,8 +119,8 @@ function getLastCommitHash(cwd){
 		if(headContent.startsWith("ref:")){
 			const refPath = headContent.split(" ")[1]
 			const fullRefPath = path.join(cwd, ".git", refPath)
-			hash = fs.readFileSync(fullRefPath, "utf8").trim().slice(0, 8) // hash raccourci
-		} else hash = headContent.slice(0, 8)
+			hash = fs.readFileSync(fullRefPath, "utf8").trim().slice(0, 7) // hash raccourci
+		} else hash = headContent.slice(0, 7)
 	} catch (err) {
 		consola.warn("Impossible de récupérer le hash du dernier commit Git, celui-ci ne sera pas fourni au client.")
 		return null
