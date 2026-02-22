@@ -1039,7 +1039,7 @@ function RocServer(options = { port: 3000, logger: true, interceptRequests: fals
 	var varResponse = initVariables(serverOptions)
 	if(varResponse != true) throw new Error(varResponse)
 	this.readonlyOptions = serverOptions
-	globalLiveReloadEnabled = options.liveReloadEnabled == true && isDev
+	globalLiveReloadEnabled = (serverOptions.liveReloadEnabled == true || options.liveReload == true) && isDev
 	projectPath = path.resolve(options.path)
 
 	// Recréer le logger si on l'a activé
